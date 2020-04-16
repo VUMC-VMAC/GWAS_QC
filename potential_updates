@@ -1,0 +1,8 @@
+Notes of this to (maybe) add the the GWAS QC scripts
+
+Part 1
+- optional argument of file to use to update sex
+
+Part 2 
+- flag/argument to indicate build of dataset
+- save pre-imputation files in a separate folder?
