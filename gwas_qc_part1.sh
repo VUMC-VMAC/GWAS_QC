@@ -96,7 +96,7 @@ Rscript get_related_ids.R ${output}_relatedness
 
 # remove selected ids from the last generated genotype file set
 echo -e "   Remove relateds"
-echo -e "Removing $( wc -l ${output_last}_relatedness_related_ids.txt ) individuals for relatedness."
+echo -e "Removing $( wc -l ${output}_relatedness_related_ids.txt ) individuals for relatedness."
 output_last=$output
 output=${output}_norelated
 plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output > /dev/null
