@@ -108,11 +108,11 @@ echo -e "Output file: $output \n"
 echo -e "\nStep 4: sex check\n"
 
 #only update sex if there is something more than missing values for sex in the provided file
-if [ "$( awk '{ print $4 }' $race_sex_file | sort -u )" -ne 0 ];
+if [ "$( awk '{ print $4 }' $race_sex_file | sort -u )" != 0 ];
 then 
     output_last=$output
     output=${output}_sex
-    plink --bfile $output_last --update-sex $race_sex_file 2 --make-bed --out $output
+    plink --bfile $output_last --update-sex $race_sex_file 2 --make-bed --out $output > /dev/null
     echo -e "Updated sex from the provided file: $race_sex_file"
 else
     echo -e "No non-missing sex information in the provided file (${race_sex_file}). Using sex from fam file."
