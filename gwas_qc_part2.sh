@@ -107,7 +107,7 @@ do
     echo -e "Chr ${i} complete..."
 done
 
-echo -e "Removed $( cat Exclude-* | wc -l ) variants for mismatch with the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation.\n"
+echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation.\n"
 
 #remove the intermediate .vcf files
 rm ${input_path}/*.vcf
