@@ -27,7 +27,7 @@ Note: assumes PLINK 1.9 is available and that this is being run from the scripts
 "
         }
 #check if there are at least 3 arguments
-if [  $# -lt 3 ]
+if [  $# -lt 4 ]
         then
                 display_usage
                 exit 1
@@ -38,7 +38,8 @@ fi
 echo -e "GWAS QC Part 1 Script\n"
 echo "stem : "$stem
 echo "raw input data : "$input_fileset
-echo "QC output directory: "$output_dir
+echo "QC output directory : "$output_dir
+echo "file with race/ethnicity and sex information : "$race_sex_file
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
@@ -48,7 +49,6 @@ Necessary scripts:
 get_related_ids.R
 check_id_length.R
 plot_het_check_outliers.R
-Run_PCcalc_infolder.sh
 plot_PCs_generate_ids_to_keep.R
 check_ambig_snps.R
 HRC-1000G-check-bim-NoReadKey.pl\n"
@@ -231,4 +231,4 @@ smartpca -p ${output}_pruned.par > ${output}_pruned_pccalc.log
 #step6.2: create plots
 Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file
 
-printf "PCs calculated and plotted. A file with ids for NHW who were not outliers on PCs1-3 is written out for your convenience if all outliers should be removed: ${output}_pruned_withoutoutliers.txt Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
+printf "PCs calculated and plots are saved here: ${output}_pruned.pdf. A file with ids for NHW who were not outliers on PCs1-3 is written out for your convenience if all outliers should be removed: ${output}_pruned_withoutoutliers.txt Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"

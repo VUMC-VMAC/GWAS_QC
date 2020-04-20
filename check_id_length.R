@@ -12,11 +12,11 @@ print("Checking variant and person id lengths for input into smartpca...")
 if(sum(sapply(bim$V2, nchar)>30)>1){
   print("Too long variant ids present in the bim file. Attempting to update.")
   to_update_bim <- bim[sapply(bim$V2, nchar)>30,]
-  to_update_bim$new_id <- paste(to_update_bim$V1, to_update_bim$V4, to_update_bim$V5,  to_update_bim$V6, sep = "_")
+  to_update_bim$new_id <- paste(to_update_bim$V1, to_update_bim$V4, sep = "_")
   
   #kill script if this doesn't work
   if(sum(sapply(to_update_bim$new_id, nchar)>30)>0){
-    stop("IDs in bim file are too long and cannot create simple shorter ids! Please fix! (probably remove indels)")
+    stop("IDs in bim file are too long and cannot create simple shorter ids! Please fix!")
   }
   
   #if it works write it out and tell the audience
