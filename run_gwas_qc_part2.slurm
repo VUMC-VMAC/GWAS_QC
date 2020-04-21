@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --mem=28G
-#SBATCH --output=STEM_gwas_qc_part2_slurm.log
+#SBATCH --output=INPUT_PATH/STEM_gwas_qc_part2_slurm.log
 #SBATCH --mail-user=EMAIL
 #SBATCH --mail-type=ALL
 #SBATCH --job-name=STEM_gwas_qc_part2

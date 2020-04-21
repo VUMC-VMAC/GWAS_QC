@@ -20,7 +20,7 @@ input_fileset = the full path and file stem for the current plink fileset '*[bed
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
 "
         }
-if [  $# -lt 2 ]
+if [  $# -lt 3 ]
         then
                 display_usage
                 exit 1
@@ -33,7 +33,6 @@ Necessary scripts:
 get_related_ids.R
 check_id_length.R
 plot_het_check_outliers.R
-Run_PCcalc_infolder.sh
 plot_PCs_generate_ids_to_keep.R
 check_ambig_snps.R
 HRC-1000G-check-bim-NoReadKey.pl\n"
@@ -112,5 +111,5 @@ echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch 
 #remove the intermediate .vcf files
 rm ${input_path}/*.vcf
 
-echo -e "\nConversion complete! Upload the files (${output}-updated-chr*_chrupdate.vcf.gz) to the imputation server.\n"
+echo -e "\nConversion complete! Upload the files (${stem}-updated-chr*_chrupdate.vcf.gz) to the imputation server.\n"
 
