@@ -21,7 +21,7 @@ SCRIPTNAME.sh [stem] [input_fileset] [output_dir] [race_sex_file]
 stem = the beginning part of all QC'ed files
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
 output_dir = where the intermediate QC files will be created
-race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed.
+race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
 
 Note: assumes PLINK 1.9 is available and that this is being run from the scripts folder.
 "

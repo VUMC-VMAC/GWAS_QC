@@ -8,6 +8,7 @@ library(data.table)
 pc_file_stem <- gsub(".pca.evec", "", pcs_file)
 
 #read in PCs
+#pcs <- read.table(pcs_file, skip = 1, header = F, stringsAsFactors = F)
 pcs <- fread(pcs_file, data.table = F)
 names(pcs) <- c("id", paste0("PC", 1:10), "pheno")
 pcs$FID <- sapply(strsplit(pcs$id, ":"), "[", 1)
@@ -18,6 +19,7 @@ pcs[c("id", "pheno")] <- NULL
 geno_file_path <- gsub('(.*)/\\w+', '\\1', pc_file_stem)
 if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   id_hash <- list.files(path = geno_file_path, pattern = "_dummy_famids.txt")
+#  id_hash <- read.table(paste0(geno_file_path, "/", id_hash), header = F, stringsAsFactors = F)
   id_hash <- fread(paste0(geno_file_path, "/", id_hash), data.table = F)
   names(id_hash) <- c("FID", "IID", "FID_hash", "IID_hash")
   names(pcs)[names(pcs)== "FID"] <- "FID_hash"
