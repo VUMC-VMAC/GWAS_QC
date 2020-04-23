@@ -105,82 +105,21 @@ echo -e "Output file: $output \n"
 
 
 ##### sex check #####
-##### sex check #####
-# for pheno sex and fam sex mismatch: -- remove ${output}_pheno_fam_sex_mismatch.txt
-# for missing sex: --update-sex $race_sex_file 2 (n=2, n+2 th column) 
-# 
 echo -e "\nStep 4: sex check\n"
-echo -e " using sex from file: $race_sex_file" # VJ
 
-# VJ: perhaps its better to wait for updating sex till we have all three sex sources: geno, pheno, and .fam file. 
-# VJ check for descripancy in pheno 'race_sex_file' and  fam '*_norelated' sex
-# if condition checks for pheno sex provided 
-if [ "$( awk '{ print $4 }' $race_sex_file | sort -u )" != 0 ];
+#only update sex if there is something more than missing values for sex in the provided file
+if [[ "$( awk '{ print $4 }' $race_sex_file | sort -u | tr -d '[:space:]' )" != 0 ]];
 then 
-  # get mismatched in pheno and fam sex
-  join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' OFS='\t' | sort -k1,1) <(<$race_sex_file awk '{print $1"_"$2, $3, $4}' OFS='\t' | sort -k1,1) | awk '$4!=$7{print}' | awk '{print $1}' | sed 's/_/\t/g' > ${output}_pheno_fam_sex_mismatch.txt
-   
-  # VJ: Is there mismatch?
-  if [ $( wc -l < ${output}_pheno_fam_sex_mismatch.txt ) -gt 0 ];
-  then
-
-    # do sex-check; display pheno, fam, and geno sex; remove the phenotype mismatches
-    output_checking_sex=${output}_checking_sex
-    plink --bfile $output --check-sex --out ${output}_checking_sex > /dev/null
-    echo -e "\n output files: \n$(ls ${output}_checking_sex.*)"  #VJ
-    grep -e 'check-sex: ' ${output}_checking_sex.log 
-
-    # join .fam, pheno, sexcheck files  and display
-    #echo -e "$(head -n1 ${output}_checking_sex.sexcheck)\t pat\t mat\t fam_sex\t pheno\t eth\t pheno_sex" 
-    echo -e "IID\t FID\t fam_sex\t SNP_sex\t \t Ethnicity\t pheno_sex"
-    join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' OFS='\t' | sort -k1,1) <(<$race_sex_file awk '{print $1"_"$2, $3, $4}' OFS='\t' | sort -k1,1)| join -j1 --check-order <(awk '{print $1"_"$2, $3, $4, $5, $6}' ${output}_checking_sex.sexcheck  OFS='\t' | sort -k1,1) - | sed 's/_/\t/' | awk '$3!=$12{print $1, $2, $3, $4, $11, $12}' OFS='\t'
-
-    # join three fam, pheno, geno (only Problems)
-join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' OFS='\t' | sort -k1,1) <(<$race_sex_file awk '{print $1"_"$2, $3, $4}' OFS='\t' | sort -k1,1)| join -j1 --check-order <(awk '$5=="PROBLEM"{print $1"_"$2, $3, $4, $5, $6}' ${output}_checking_sex.sexcheck | sort -k1,1) - | sed 's/_/\t/' 
-
-    ## remove phenotype-mismatches: (--remove) ${output}_pheno_fam_sex_mismatch.txt (here or remove with sex_check)
-    echo -e " Removing phenotype sex mismatches"
-    echo -e "Removing $( wc -l <${output}_pheno_fam_sex_mismatch.txt ) individuals for phenotype sex mismatch."
-    output_last=$output
-    output=${output}_pheno_mismatch
-    plink --bfile $output_last --remove ${output_last}_pheno_fam_sex_mismatch.txt --make-bed --out $output > /dev/null
-    grep ' people pass filters and QC' $output.log
-    echo -e "Output file: $output \n"
-  fi
-fi
-
-
-#only update sex if there is something more than missing values "0" for sex in the provided
- file, provides flexibility to updateonly selected individuals with non-missing sex #VJ
-if [ "$( awk '{ print $4 }' $race_sex_file | sort -u )" != 0 ];
-then 
-    # VJ: output/output_last are only updated if pheno-sex-mismatch is found in previous step
     output_last=$output
     output=${output}_sex
-    plink --bfile $output_last --update-sex <(awk '$4>0' $race_sex_file) 2 --make-bed --out $output > /dev/null #VJ
-    echo -e "\n output files: \n$(ls ${output}.*)" # VJ
-    echo -e "Updated sex from the provided file for non-missing : $race_sex_file"
+    plink --bfile $output_last --update-sex $race_sex_file 2 --make-bed --out $output > /dev/null
+    echo -e "Updated sex from the provided file: $race_sex_file"
 else
     echo -e "No non-missing sex information in the provided file (${race_sex_file}). Using sex from fam file."
 fi
- 
-# VJ display which iid's are updated (as now part update is an option)
-echo -e "$output \n $output_last"
-echo -e "IID \t FID \t sex_new \t sex_last"
-join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' | sort -k1,1) <(<$output_last.fam awk '{print $1"_"$2, $3, $4, $5, $6}' | sort -k1,1) | awk '$4!=$8{print $1, $4, $8}' OFS='\t' | sed 's/_/\t /g' | tee >( echo -e " Number of iid's updated: $(wc -l ) " )
- 
- 
-#do the check (did the check before so can remove this, just need the file name)
+#do the check
 plink --bfile $output --check-sex --out ${output}_checking_sex > /dev/null
-echo -e "\n output files: \n$(ls ${output}_checking_sex.*)"  #VJ
 grep -e 'check-sex: ' ${output}_checking_sex.log 
-
-# print problems
-head -n1 ${output}_checking_sex.sexcheck # VJ
-awk '$5=="PROBLEM"{print}' ${output}_checking_sex.sexcheck | sort -k1,1 #VJ
-
-# VJ 20200421: phenotype mismatch(output, output_last) check (joining the fam, pheno and sex_checkfile and displaying the options)
-
 
 #write mismatched sex iids in text file
 awk '{ if($5=="PROBLEM" && $4 != 0 && $3 != 0) print $1" "$2 }' ${output}_checking_sex.sexcheck > ${output}_mismatched_sex_ids.txt
