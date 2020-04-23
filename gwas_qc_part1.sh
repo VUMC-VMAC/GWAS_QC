@@ -52,7 +52,7 @@ plot_het_check_outliers.R
 plot_PCs_generate_ids_to_keep.R
 check_ambig_snps.R
 HRC-1000G-check-bim-NoReadKey.pl\n"
-        exit 1
+        exit 1 
 fi
 
 
@@ -103,8 +103,6 @@ plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt -
 grep ' people pass filters and QC' $output.log
 echo -e "Output file: $output \n"
 
-
-##### sex check #####
 ##### sex check #####
 # for pheno sex and fam sex mismatch: -- remove ${output}_pheno_fam_sex_mismatch.txt
 # for missing sex: --update-sex $race_sex_file 2 (n=2, n+2 th column) 
@@ -118,7 +116,7 @@ echo -e " using sex from file: $race_sex_file" # VJ
 if [ "$( awk '{ print $4 }' $race_sex_file | sort -u )" != 0 ];
 then 
   # get mismatched in pheno and fam sex
-  join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' OFS='\t' | sort -k1,1) <(<$race_sex_file awk '{print $1"_"$2, $3, $4}' OFS='\t' | sort -k1,1) | awk '$4!=$7{print}' | awk '{print $1}' | sed 's/_/\t/g' > ${output}_pheno_fam_sex_mismatch.txt
+  join -j1 --check-order <(<${output}.fam awk '{print $1"_"$2, $3, $4, $5, $6}' OFS='\t' | sort -k1,1) <(<$race_sex_file awk '{print $1"_"$2, $3, $4}' OFS='\t' | sort -k1,1) | awk '$4!=$7{print}' | awk '{print $1}' | sed 's/_/\t/' > ${output}_pheno_fam_sex_mismatch.txt
    
   # VJ: Is there mismatch?
   if [ $( wc -l < ${output}_pheno_fam_sex_mismatch.txt ) -gt 0 ];
