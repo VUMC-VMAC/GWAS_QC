@@ -99,7 +99,7 @@ do
     #if noexclude, then skip the exclusion step in the plink file
     if [[ $exclude == "noexclude" ]];
     then
-	sed -i -e '1s/.*/#&/' -e "s|${stem}_chr${i}|${input_path}/TEMP1|g" Run-plink.sh
+	sed -i -e '1s/.*/#&/' -e "s|${stem}_chr${i}|${input_path}/TEMP1|g" ${input_path}/Run-plink.sh
     fi
 
     #run created script with all the plink commands; breaks into files for each chr
