@@ -3,6 +3,7 @@
 stem=$1
 input_fileset=$2
 ref_file_stem=$3
+exclude=$4
 
 #fail if error
 set -e
@@ -13,14 +14,15 @@ display_usage() {
 Picks up after decisions have been made regarding PC outlier removal. Input dataset can be either the non-Hispanic white subset or include all races present. This script will perform the Hardy-Weinberg filter and prepare the files for upload to the TopMed Imputation Server. Will create all files within the same folder as the current plink fileset.
 
 Usage:
-SCRIPTNAME.sh [stem] [input_fileset] [ref_file_stem]
+SCRIPTNAME.sh [stem] [input_fileset] [ref_file_stem] [exclude]
 
 stem = the prefix you want for the files right before imputation
 input_fileset = the full path and file stem for the current plink fileset '*[bed,bim,fam]'
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
+exclude = either exclude or noexclude to indicate whether or not to exclude variants for not being in the reference panel
 "
         }
-if [  $# -lt 3 ]
+if [  $# -lt 4 ]
         then
                 display_usage
                 exit 1
@@ -94,6 +96,12 @@ do
     #run the imputation checking script
     perl HRC-1000G-check-bim-NoReadKey.pl -b ${stem}_chr$i.bim  -f ${stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
 
+    #if noexclude, then skip the exclusion step in the plink file
+    if [[ $exclude == "noexclude" ]];
+    then
+	sed -i -e '1s/.*/#&/' -e "s|${stem}_chr${i}|${input_path}/TEMP1|g" Run-plink.sh
+    fi
+
     #run created script with all the plink commands; breaks into files for each chr
     sed -i "s|rm TEMP|rm ${input_path}/TEMP|" ${input_path}/Run-plink.sh
     sh ${input_path}/Run-plink.sh > /dev/null
@@ -106,7 +114,13 @@ do
     echo -e "Chr ${i} complete..."
 done
 
-echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation.\n"
+#print out number of variants actually excluded or which would have been excluded
+if [[ $exclude == "noexclude" ]];
+then 
+    echo -e "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+else
+    echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation.\n"
+fi
 
 #remove the intermediate .vcf files
 rm ${input_path}/*.vcf
