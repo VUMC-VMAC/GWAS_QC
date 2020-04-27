@@ -49,6 +49,10 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
 
+for i in $( ls ${imputation_results_folder}/*.zip );
+do
+    unzip -P $( cat ${imputation_results_folder}/pass.txt $i 
+done
 
 
 #load the most recent version of plink to have vcf conversion capabilities

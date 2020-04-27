@@ -4,8 +4,7 @@
 
 stem=$1
 input_fileset=$2
-output_dir=$3
-race_sex_file=$4
+race_sex_file=$3
 
 #fail on error
 set -e
@@ -16,18 +15,17 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 
 Usage:
-SCRIPTNAME.sh [stem] [input_fileset] [output_dir] [race_sex_file]
+SCRIPTNAME.sh [stem] [input_fileset] [race_sex_file]
 
-stem = the beginning part of all QC'ed files
+stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
-output_dir = where the intermediate QC files will be created
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
 
 Note: assumes PLINK 1.9 is available and that this is being run from the scripts folder.
 "
         }
 #check if there are at least 3 arguments
-if [  $# -lt 4 ]
+if [  $# -lt 3 ]
         then
                 display_usage
                 exit 1
@@ -58,7 +56,7 @@ fi
 
 ##### initial SNP filters #####
 echo -e "\n\nStep 1: Remove SNPs with >5% missingness or with MAF <0.01\n"
-output=$( echo ${output_dir}/${stem}_geno05_maf01 )
+output=$( echo ${stem}_geno05_maf01 )
 plink --bfile $input_fileset --geno 0.05 --maf 0.01 --make-bed --out $output > /dev/null
 
 grep 'loaded from' $output.log  | sed  's/loaded from.*//' | head -n2
@@ -202,33 +200,62 @@ then
     plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
     grep -e ' people pass filters and QC' ${output}.log
     echo -e "Output file: $output \n"
-    echo -e "Redoing pruning in the new fileset in preparation for PC calculation."
-
-    #redo pruning for PC calculation
-    plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${new_file_name}_prune > /dev/null
-    plink --bfile ${output} --extract ${new_file_name}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
-    echo -e "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning."
 fi
+
+#### prep for PCs with 1000G data ###
+echo -e "\nStep 8: Merging with 1000G for PC calculation\n"
+
+#get variants in current dataset
+awk '{ print $2 }' ${output}.bim > ${output}_snps.txt
+
+#subset 1000G dataset to only variants present here
+plink --bfile all_1000G_maf001 --extract ${output}_snps.txt --make-bed --out ${output}_1000G_overlapping > /dev/null
+num_1000G_snps=$( wc -l < ${output}_1000G_overlapping.bim )
+echo -e "$num_1000G_snps overlap between 1000G and the current dataset\n"
+
+#attempt merge (keep the script from failing when this command fails)
+plink --bfile ${output} --bmerge ${output}_1000G_overlapping --make-bed --out ${stem}_1000G || true 2>&1 /dev/null
+with_1000G=${stem}_1000G
+
+if [ -f "${stem}_1000G-merge.missnp" ];
+then
+    #remove the mismatching variants
+    plink --bfile ${output} --exclude ${stem}_1000G-merge.missnp --make-bed --out ${stem}_formerge > /dev/null
+    plink --bfile ${output}_1000G_overlapping --exclude ${stem}_1000G-merge.missnp --make-bed --out ${stem}_1000G_formerge  > /dev/null
+    plink --bfile ${stem}_formerge --bmerge ${stem}_1000G_formerge --make-bed --out ${stem}_1000G  > /dev/null
+
+    #filter to overlapping
+    plink --bfile ${stem}_1000G --geno 0.05 --make-bed --out ${stem}_1000G_geno05  > /dev/null
+    echo -e "$( wc -l < ${stem}_1000G_geno05.bim ) variants in dataset merged with 1000G\n"
+    with_1000G=${stem}_1000G_geno05
+fi
+
+#prune
+plink --bfile ${with_1000G} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${with_1000G}_forprune > /dev/null
+plink --bfile ${with_1000G} --extract ${with_1000G}_forprune.prune.in --make-bed --out ${with_1000G}_pruned > /dev/null
+echo -e "$( wc -l < ${with_1000G}_pruned.bim ) variants out of $( wc -l < ${with_1000G}.bim ) left after pruning."
 
 
 ##### Calculate PCs #####
 echo -e "\nStep 8: Running PC calculation with smartpca\n"
 
 #Run smartpca
-printf "genotypename: ${output}_pruned.bed
-snpname: ${output}_pruned.bim
-indivname: ${output}_pruned.fam
-evecoutname: ${output}_pruned.pca.evec
-evaloutname: ${output}_pruned.eigenvalues
+printf "genotypename: ${with_1000G}_pruned.bed
+snpname: ${with_1000G}_pruned.bim
+indivname: ${with_1000G}_pruned.fam
+evecoutname: ${with_1000G}_pruned.pca.evec
+evaloutname: ${with_1000G}_pruned.eigenvalues
 altnormstyle: NO
 numoutevec: 10
 numoutlieriter: 0
 numoutlierevec: 10
 outliersigmathresh: 6
-qtmode: 0" > ${output}_pruned.par
-smartpca -p ${output}_pruned.par > ${output}_pruned_pccalc.log
+qtmode: 0" > ${with_1000G}_pruned.par
+smartpca -p ${with_1000G}_pruned.par > ${with_1000G}_pruned_pccalc.log
 
 #step6.2: create plots
-Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file
+Rscript plot_PCs_generate_ids_to_keep.R  ${stem} ${with_1000G}_pruned.pca.evec $race_sex_file
 
-printf "PCs calculated and plots are saved here: ${output}_pruned.pdf. A file with ids for NHW who were not outliers on PCs1-3 is written out for your convenience if all outliers should be removed: ${output}_pruned_withoutoutliers.txt Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
+printf "PCs calculated and plots are saved here: ${stem}_PCplots.pdf. 
+A file with ids for NHW who were not outliers on PCs1-3 is written out for your convenience if all outliers should be removed: ${stem}_withoutoutliers.txt 
+Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"

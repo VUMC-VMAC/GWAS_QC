@@ -19,10 +19,10 @@ SCRIPTNAME.sh [stem] [input_fileset] [ref_file_stem] [exclude]
 stem = the prefix you want for the files right before imputation
 input_fileset = the full path and file stem for the current plink fileset '*[bed,bim,fam]'
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
-exclude = either exclude or noexclude to indicate whether or not to exclude variants for not being in the reference panel
+exclude = optional argument set to noexclude to indicate not to exclude variants for not being in or not matching the reference panel
 "
         }
-if [  $# -lt 4 ]
+if [  $# -lt 3 ]
         then
                 display_usage
                 exit 1

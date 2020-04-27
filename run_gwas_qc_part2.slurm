@@ -17,4 +17,4 @@ PATH=$PATH:/home/clarklc/Programs/bcftools-1.3.1/bin
 export PATH
 
 cd /data/h_vmac/GWAS_QC
-sh gwas_qc_part2.sh STEM INPUT_FILESET REF_FILE noexclude
+sh gwas_qc_part2.sh STEM INPUT_FILESET REF_FILE 
