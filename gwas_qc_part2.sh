@@ -99,7 +99,7 @@ do
     #if noexclude, then skip the exclusion step in the plink file
     if [[ $exclude == "noexclude" ]];
     then
-	sed -i -e '1s/.*/#&/' -e "s|${stem}_chr${i}|${input_path}/TEMP1|g" ${input_path}/Run-plink.sh
+	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${stem}_chr${i}|g" ${input_path}/Run-plink.sh
     fi
 
     #run created script with all the plink commands; breaks into files for each chr
@@ -117,9 +117,9 @@ done
 #print out number of variants actually excluded or which would have been excluded
 if [[ $exclude == "noexclude" ]];
 then 
-    echo -e "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+    echo -e "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
-    echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr${i}-updated-chr${i}.bim | wc -l ) for imputation.\n"
+    echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
 fi
 
 #remove the intermediate .vcf files
