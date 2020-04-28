@@ -5,6 +5,7 @@
 stem=$1
 input_fileset=$2
 race_sex_file=$3
+1000G_stem=$4
 
 #fail on error
 set -e
@@ -15,11 +16,12 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 
 Usage:
-SCRIPTNAME.sh [stem] [input_fileset] [race_sex_file]
+SCRIPTNAME.sh [stem] [input_fileset] [race_sex_file] [1000G_stem]
 
 stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
+1000G_stem = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
 
 Note: assumes PLINK 1.9 is available and that this is being run from the scripts folder.
 "
@@ -38,6 +40,7 @@ echo "stem : "$stem
 echo "raw input data : "$input_fileset
 echo "QC output directory : "$output_dir
 echo "file with race/ethnicity and sex information : "$race_sex_file
+echo "1000G data for PC calculation : "${1000G_stem}
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
