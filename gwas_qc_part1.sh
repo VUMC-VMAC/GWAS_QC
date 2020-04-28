@@ -2,11 +2,6 @@
 # Author: Vaibhav Janve 2020-04-07
 # Author 2: Emily Mahoney 2020-04-09
 
-stem=$1
-input_fileset=$2
-race_sex_file=$3
-1000G_stem=$4
-
 #fail on error
 set -e
 
@@ -16,7 +11,7 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 
 Usage:
-SCRIPTNAME.sh [stem] [input_fileset] [race_sex_file] [1000G_stem]
+SCRIPTNAME.sh -o [stem] -i [input_fileset] -r [race_sex_file] -G [1000G_stem]
 
 stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
@@ -26,13 +21,32 @@ race_sex_file = a file with FID and IID (corresponding to the fam file), 1 colum
 Note: assumes PLINK 1.9 is available and that this is being run from the scripts folder.
 "
         }
-#check if there are at least 3 arguments
-if [  $# -lt 3 ]
-        then
-                display_usage
-                exit 1
+
+while getopts 'o:i:r:G:' flag; do
+  case "${flag}" in
+    o) output_stem='${OPTARG}' ;;
+    i) input_fileset='${OPTARG}' ;;
+    r) race_sex_file="${OPTARG}" ;;
+    G) 1000G_stem='${OPTARG}' ;;
+    h) display_usage
+    \?|*) display_usage
+       exit 1;;
+  esac
+done
+
+#check to make sure necessary arguments are present
+if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$race_sex_file" ] ;
+then
+    echo -e "Necessary arguments not present!\n"
+    display_usage
+    exit 1
 fi
 
+#print message if 1000G dataset is not specified
+if [ -z "$1000G_stem" ];
+then
+    echo -e "No location was specified for the 1000G data, so no PCs will be calculated including them!\n"
+fi
 
 #print out inputs
 echo -e "GWAS QC Part 1 Script\n"
@@ -231,10 +245,21 @@ smartpca -p ${output}_pruned.par > ${output}_pruned_pccalc.log
 
 #create plots
 #arguments: PCA file, race/sex file, yes/no to indicate whether to output a file for outlier exclusion
-Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file no
-
-printf "PCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
+if [ ! -z "$1000G_stem" ]
+then
+    #if 1000G is set, then don't output a file for exclusion and print message about technical issues
+    Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file no
+    printf "PCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
 Please scan PC plots for any potential technical issues. \n"
+else
+    #if 1000f is not set, then output a file for default exclusions, print out message about it, and exit the script
+    Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file yes
+    printf "PCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
+A file with ids for NHW who were not >5 SD from the mean in European samples on PCs1-3 is written out for your convenience if all outliers should be removed: ${output}_nooutliers.txt 
+Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
+    exit
+fi
+
 
 #### prep for PCs with 1000G data ###
 echo -e "\nStep 9: Merging with 1000G for PC calculation to make ancestry filtering decisions\n"
@@ -290,6 +315,6 @@ smartpca -p ${with_1000G}_pruned.par > ${with_1000G}_pruned_pccalc.log
 #arguments: PCA file, race/sex file, yes/no to indicate whether to output a file for outlier exclusion
 Rscript plot_PCs_generate_ids_to_keep.R ${with_1000G}_pruned.pca.evec $race_sex_file yes
 
-printf "PCs calculated and plots are saved here: ${with_1000G}_pruned_PCplots.pdf. 
-A file with ids for NHW who were not >5 SD from the mean in European samples on PCs1-3 is written out for your convenience if all outliers should be removed: ${with_1000G}_no1000G_nooutliers.txt 
+printf "PCs calculated including 1000G samples and plots are saved here: ${with_1000G}_pruned_PCplots.pdf. 
+A file with ids for NHW who were not >5 SD from the mean in European samples on PCs1-3 is written out for your convenience if all outliers should be removed: ${with_1000G}_nooutliers.txt 
 Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"

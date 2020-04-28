@@ -103,5 +103,5 @@ if(write_excl_file == "yes"){
                       data_nhw$PC2 > mean(data_nhw$PC2)-5*sd(data_nhw$PC2) & data_nhw$PC2 < mean(data_nhw$PC2)+5*sd(data_nhw$PC2) &
                       data_nhw$PC3 > mean(data_nhw$PC3)-5*sd(data_nhw$PC3) & data_nhw$PC3 < mean(data_nhw$PC3)+5*sd(data_nhw$PC3),
                     c("FID", "IID")]
-   write.table(ids_to_keep, paste0(pc_file_stem, "_no1000G_nooutliers.txt"), col.names = F, row.names = F, quote = F)
+   write.table(ids_to_keep, paste0(pc_file_stem, "_nooutliers.txt"), col.names = F, row.names = F, quote = F)
 }
