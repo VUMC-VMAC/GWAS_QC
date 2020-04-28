@@ -200,44 +200,74 @@ then
     plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
     grep -e ' people pass filters and QC' ${output}.log
     echo -e "Output file: $output \n"
+    echo -e "Redoing pruning in the new fileset in preparation for PC calculation within this dataset."
+
+    #redo pruning for PC calculation
+    plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${new_file_name}_prune > /dev/null
+    plink --bfile ${output} --output-missing-phenotype 1 --extract ${new_file_name}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
+    echo -e "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning."
 fi
 
+##### Calculate PCs within this dataset #####
+
+echo -e "\nStep 8: Running PC calculation with smartpca\n"
+
+#Run smartpca
+printf "genotypename: ${output}_pruned.bed
+snpname: ${output}_pruned.bim
+indivname: ${output}_pruned.fam
+evecoutname: ${output}_pruned.pca.evec
+evaloutname: ${output}_pruned.eigenvalues
+altnormstyle: NO
+numoutevec: 10
+numoutlieriter: 0
+numoutlierevec: 10
+outliersigmathresh: 6
+qtmode: 0" > ${output}_pruned.par
+smartpca -p ${output}_pruned.par > ${output}_pruned_pccalc.log
+
+#create plots
+#arguments: PCA file, race/sex file, yes/no to indicate whether to output a file for outlier exclusion
+Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file no
+
+printf "PCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
+Please scan PC plots for any potential technical issues. \n"
+
 #### prep for PCs with 1000G data ###
-echo -e "\nStep 8: Merging with 1000G for PC calculation\n"
+echo -e "\nStep 9: Merging with 1000G for PC calculation to make ancestry filtering decisions\n"
 
 #get variants in current dataset
 awk '{ print $2 }' ${output}.bim > ${output}_snps.txt
 
 #subset 1000G dataset to only variants present here
-plink --bfile all_1000G_maf001 --extract ${output}_snps.txt --make-bed --out ${output}_1000G_overlapping > /dev/null
+plink --bfile all_1000G_maf001  --output-missing-phenotype 1 --extract ${output}_snps.txt --make-bed --out ${output}_1000G_overlapping > /dev/null
 num_1000G_snps=$( wc -l < ${output}_1000G_overlapping.bim )
 echo -e "$num_1000G_snps overlap between 1000G and the current dataset\n"
 
 #attempt merge (keep the script from failing when this command fails)
-plink --bfile ${output} --bmerge ${output}_1000G_overlapping --make-bed --out ${stem}_1000G || true 2>&1 /dev/null
+plink --bfile ${output} --bmerge ${output}_1000G_overlapping --allow-no-sex --make-bed --out ${stem}_1000G || true &> /dev/null
 with_1000G=${stem}_1000G
 
 if [ -f "${stem}_1000G-merge.missnp" ];
 then
     #remove the mismatching variants
-    plink --bfile ${output} --exclude ${stem}_1000G-merge.missnp --make-bed --out ${stem}_formerge > /dev/null
-    plink --bfile ${output}_1000G_overlapping --exclude ${stem}_1000G-merge.missnp --make-bed --out ${stem}_1000G_formerge  > /dev/null
-    plink --bfile ${stem}_formerge --bmerge ${stem}_1000G_formerge --make-bed --out ${stem}_1000G  > /dev/null
+    plink --bfile ${output} --exclude ${with_1000G}-merge.missnp --allow-no-sex --make-bed --out ${stem}_formerge > /dev/null
+    plink --bfile ${output}_1000G_overlapping --exclude ${with_1000G}-merge.missnp --allow-no-sex --make-bed --out ${stem}_1000G_formerge  > /dev/null
+    plink --bfile ${stem}_formerge --bmerge ${stem}_1000G_formerge --allow-no-sex --make-bed --out ${with_1000G}  > /dev/null
 
     #filter to overlapping
-    plink --bfile ${stem}_1000G --geno 0.05 --make-bed --out ${stem}_1000G_geno05  > /dev/null
+    plink --bfile ${stem}_1000G --geno 0.05 --allow-no-sex --make-bed --out ${stem}_1000G_geno05  > /dev/null
     echo -e "$( wc -l < ${stem}_1000G_geno05.bim ) variants in dataset merged with 1000G\n"
     with_1000G=${stem}_1000G_geno05
 fi
 
 #prune
 plink --bfile ${with_1000G} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${with_1000G}_forprune > /dev/null
-plink --bfile ${with_1000G} --extract ${with_1000G}_forprune.prune.in --make-bed --out ${with_1000G}_pruned > /dev/null
+plink --bfile ${with_1000G} --output-missing-phenotype 1 --extract ${with_1000G}_forprune.prune.in --allow-no-sex --make-bed --out ${with_1000G}_pruned > /dev/null
 echo -e "$( wc -l < ${with_1000G}_pruned.bim ) variants out of $( wc -l < ${with_1000G}.bim ) left after pruning."
 
-
 ##### Calculate PCs #####
-echo -e "\nStep 8: Running PC calculation with smartpca\n"
+echo -e "\nStep 10: Running PC calculation including 1000G samples with smartpca\n"
 
 #Run smartpca
 printf "genotypename: ${with_1000G}_pruned.bed
@@ -253,9 +283,10 @@ outliersigmathresh: 6
 qtmode: 0" > ${with_1000G}_pruned.par
 smartpca -p ${with_1000G}_pruned.par > ${with_1000G}_pruned_pccalc.log
 
-#step6.2: create plots
-Rscript plot_PCs_generate_ids_to_keep.R  ${stem} ${with_1000G}_pruned.pca.evec $race_sex_file
+#create plots
+#arguments: PCA file, race/sex file, yes/no to indicate whether to output a file for outlier exclusion
+Rscript plot_PCs_generate_ids_to_keep.R ${with_1000G}_pruned.pca.evec $race_sex_file yes
 
-printf "PCs calculated and plots are saved here: ${stem}_PCplots.pdf. 
-A file with ids for NHW who were not outliers on PCs1-3 is written out for your convenience if all outliers should be removed: ${stem}_withoutoutliers.txt 
+printf "PCs calculated and plots are saved here: ${with_1000G}_pruned_PCplots.pdf. 
+A file with ids for NHW who were not >5 SD from the mean in European samples on PCs1-3 is written out for your convenience if all outliers should be removed: ${with_1000G}_no1000G_nooutliers.txt 
 Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"

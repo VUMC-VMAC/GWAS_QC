@@ -1,10 +1,12 @@
 args <- commandArgs(TRUE)
-stem <- args[1]
-pcs_file <- args[2]
-race_file <- args[3]
+pcs_file <- args[1]
+race_file <- args[2]
+write_excl_file <- args[3] #defines whether or not to write out a file for default exclusion decisions
 
 library(ggplot2)
 library(data.table)
+
+pc_file_stem <- gsub(".pca.evec", "", pcs_file)
 
 #read in PCs
 #pcs <- read.table(pcs_file, skip = 1, header = F, stringsAsFactors = F)
@@ -15,7 +17,7 @@ pcs$IID <- sapply(strsplit(pcs$id, ":"), "[", 2)
 pcs[c("id", "pheno")] <- NULL
 
 #check for the existence of a hash file and if so read it in to convert the ids
-geno_file_path <- gsub('(.*)/\\w+', '\\1', stem)
+geno_file_path <- gsub('(.*)/\\w+', '\\1', pc_file_stem)
 if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   id_hash <- list.files(path = geno_file_path, pattern = "_dummy_famids.txt")
   #  id_hash <- read.table(paste0(geno_file_path, "/", id_hash), header = F, stringsAsFactors = F)
@@ -46,48 +48,60 @@ data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID",
 #merge race and PCs
 data <- merge(pcs, data, by = c("FID", "IID"))
 
-pdf(paste0(stem, ".pdf"))
+#get NHW subset
+data_nhw <- data[data$race %in% c("EUR", "White"),]
+
+pdf(paste0(pc_file_stem, ".pdf"))
 
 #color just to see if they cluster by 1000G race
-ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point() 
-ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point() 
-ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point() 
+ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2))))
+
+ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3))))
+
+ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC4)-5*sd(data_nhw$PC4)), (mean(data_nhw$PC4)+5*sd(data_nhw$PC4))))
+
 
 #subset to just the current dataset
-data_current <- data[data$set=="current",]
-ggplot(data = data_current, aes(x=PC1, y=PC2, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC1)-5*sd(data_current$PC1)), (mean(data_current$PC1)+5*sd(data_current$PC1)))) +
-  geom_hline(yintercept = c((mean(data_current$PC2)-5*sd(data_current$PC2)), (mean(data_current$PC2)+5*sd(data_current$PC2))))
+ggplot(data = data[data$set=="current",], aes(x=PC1, y=PC2, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2))))
 
-ggplot(data = data_current, aes(x=PC2, y=PC3, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC2)-5*sd(data_current$PC2)), (mean(data_current$PC2)+5*sd(data_current$PC2)))) +
-  geom_hline(yintercept = c((mean(data_current$PC3)-5*sd(data_current$PC3)), (mean(data_current$PC3)+5*sd(data_current$PC3))))
+ggplot(data = data[data$set=="current",], aes(x=PC2, y=PC3, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3))))
 
-ggplot(data = data_current, aes(x=PC3, y=PC4, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC3)-5*sd(data_current$PC3)), (mean(data_current$PC3)+5*sd(data_current$PC3)))) +
-  geom_hline(yintercept = c((mean(data_current$PC4)-5*sd(data_current$PC4)), (mean(data_current$PC4)+5*sd(data_current$PC4))))
+ggplot(data = data[data$set=="current",], aes(x=PC3, y=PC4, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC4)-5*sd(data_nhw$PC4)), (mean(data_nhw$PC4)+5*sd(data_nhw$PC4))))
 
 
 #restrict to non-hispanic whites 
-ggplot(data = data_current[data_current$race=="White",], aes(x=PC1, y=PC2, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC1)-5*sd(data_current$PC1)), (mean(data_current$PC1)+5*sd(data_current$PC1)))) +
-  geom_hline(yintercept = c((mean(data_current$PC2)-5*sd(data_current$PC2)), (mean(data_current$PC2)+5*sd(data_current$PC2))))
+ggplot(data = data[data$set=="current" & data$race == "White",], aes(x=PC1, y=PC2, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2))))
 
-ggplot(data = data_current[data_current$race=="White",], aes(x=PC2, y=PC3, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC2)-5*sd(data_current$PC2)), (mean(data_current$PC2)+5*sd(data_current$PC2)))) +
-  geom_hline(yintercept = c((mean(data_current$PC3)-5*sd(data_current$PC3)), (mean(data_current$PC3)+5*sd(data_current$PC3))))
+ggplot(data = data[data$set=="current" & data$race == "White",], aes(x=PC2, y=PC3, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3))))
 
-ggplot(data = data_current[data_current$race=="White",], aes(x=PC3, y=PC4, color = race)) + geom_point()  +
-  geom_vline(xintercept = c((mean(data_current$PC3)-5*sd(data_current$PC3)), (mean(data_current$PC3)+5*sd(data_current$PC3)))) +
-  geom_hline(yintercept = c((mean(data_current$PC4)-5*sd(data_current$PC4)), (mean(data_current$PC4)+5*sd(data_current$PC4))))
+ggplot(data = data[data$set=="current" & data$race == "White",], aes(x=PC3, y=PC4, color = race)) + geom_point()  +
+  geom_vline(xintercept = c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3)))) +
+  geom_hline(yintercept = c((mean(data_nhw$PC4)-5*sd(data_nhw$PC4)), (mean(data_nhw$PC4)+5*sd(data_nhw$PC4))))
 
 dev.off()
 
-
-#get NHW and non-outliers (according to the current sample mean)
-ids_to_keep <- data_current[data_current$race == "White" &
-                      data_current$PC1 > mean(data_current$PC1)-5*sd(data_current$PC1) & data_current$PC1 < mean(data_current$PC1)+5*sd(data_current$PC1) &
-                      data_current$PC2 > mean(data_current$PC2)-5*sd(data_current$PC2) & data_current$PC2 < mean(data_current$PC2)+5*sd(data_current$PC2) &
-                      data_current$PC3 > mean(data_current$PC3)-5*sd(data_current$PC3) & data_current$PC3 < mean(data_current$PC3)+5*sd(data_current$PC3),
+if(write_excl_file == "yes"){
+   #get NHW and non-outliers (according to the current sample mean)
+   ids_to_keep <- data_nhw[data_nhw$set=="current" &
+                      data_nhw$PC1 > mean(data_nhw$PC1)-5*sd(data_nhw$PC1) & data_nhw$PC1 < mean(data_nhw$PC1)+5*sd(data_nhw$PC1) &
+                      data_nhw$PC2 > mean(data_nhw$PC2)-5*sd(data_nhw$PC2) & data_nhw$PC2 < mean(data_nhw$PC2)+5*sd(data_nhw$PC2) &
+                      data_nhw$PC3 > mean(data_nhw$PC3)-5*sd(data_nhw$PC3) & data_nhw$PC3 < mean(data_nhw$PC3)+5*sd(data_nhw$PC3),
                     c("FID", "IID")]
-write.table(ids_to_keep, paste0(stem, "_withoutoutliers.txt"), col.names = F, row.names = F, quote = F)
+   write.table(ids_to_keep, paste0(pc_file_stem, "_no1000G_nooutliers.txt"), col.names = F, row.names = F, quote = F)
+}
