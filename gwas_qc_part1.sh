@@ -52,10 +52,10 @@ printf "file with race/ethnicity and sex information : $race_sex_file \n"
 #print message if 1000G dataset is not specified
 if [ -z "$stem_1000G" ];
 then
-    printf "No location was specified for the 1000G data, so no PCs will be calculated including them!\n"
+    printf "No location was specified for the 1000G data, so no PCs will be calculated including them!\n\n"
 else
     echo $stem_1000G
-    printf "1000G data for PC calculation : ${stem_1000G}\n"
+    printf "1000G data for PC calculation : ${stem_1000G}\n\n"
 fi
 
 

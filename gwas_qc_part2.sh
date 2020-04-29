@@ -112,7 +112,7 @@ do
     perl HRC-1000G-check-bim-NoReadKey.pl -b ${output_stem}_chr$i.bim  -f ${output_stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
 
     #if noexclude, then skip the exclusion step in the plink file
-    if [ "$noexclude" == true ];
+    if [ "$noexclude" = true ];
     then
 	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${stem}_chr${i}|g" ${input_path}/Run-plink.sh
     fi
@@ -130,7 +130,7 @@ do
 done
 
 #print out number of variants actually excluded or which would have been excluded
-if [ "$noexclude" == true ];
+if [ "$noexclude" = true ];
 then 
     printf "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
