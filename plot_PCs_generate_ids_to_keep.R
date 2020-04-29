@@ -1,7 +1,9 @@
 args <- commandArgs(TRUE)
 pcs_file <- args[1]
 race_file <- args[2]
-write_excl_file <- args[3] #defines whether or not to write out a file for default exclusion decisions
+race_1000G_file <- args[3] #defines race file for 1000G; set to NA if 1000G were not included in these PCs
+write_excl_file <- args[4] #defines whether or not to write out a file for default exclusion decisions
+
 
 library(ggplot2)
 library(data.table)
@@ -39,17 +41,22 @@ data <- fread(race_file, data.table = F, header = F)
 names(data) <- c("FID", "IID", "race", "sex")
 data$set <- "current"
 
-#read in race for 1000G
-data_1000G <- fread("1000G_race.txt", header = F)
-names(data_1000G) <- c("FID", "IID", "race")
-data_1000G$set <- "1000G"
-data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])
+if(!is.na(race_1000G_file)){
+	#read in race for 1000G
+	data_1000G <- fread("1000G_race.txt", header = F)
+	names(data_1000G) <- c("FID", "IID", "race")
+	data_1000G$set <- "1000G"
+	data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])
+}
 
 #merge race and PCs
 data <- merge(pcs, data, by = c("FID", "IID"))
 
 #get NHW subset
 data_nhw <- data[data$race %in% c("EUR", "White"),]
+
+#print out how many rows
+print(paste(nrow(data), "people with PCs, ",  nrow(data_nhw), "NHW"))
 
 pdf(paste0(pc_file_stem, ".pdf"))
 
