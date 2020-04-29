@@ -41,9 +41,9 @@ data <- fread(race_file, data.table = F, header = F)
 names(data) <- c("FID", "IID", "race", "sex")
 data$set <- "current"
 
-if(!is.na(race_1000G_file)){
+if(race_1000G_file != "NA"){
 	#read in race for 1000G
-	data_1000G <- fread("1000G_race.txt", header = F)
+	data_1000G <- fread(race_1000G_file, header = F)
 	names(data_1000G) <- c("FID", "IID", "race")
 	data_1000G$set <- "1000G"
 	data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])

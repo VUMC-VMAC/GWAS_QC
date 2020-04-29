@@ -127,7 +127,7 @@ printf "Output file: $output \n"
 printf "\nStep 4: sex check\n"
 
 #only update sex if there is something more than missing values for sex in the provided file
-if [[ "$( awk '{ print $4 }' $race_sex_file | sort -u | tr -d '[:space:]' )" != 0 ]];
+if [ "$( awk '{ print $4 }' $race_sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
 then 
     output_last=$output
     output=${output}_sex

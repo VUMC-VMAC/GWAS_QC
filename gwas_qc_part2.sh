@@ -20,11 +20,13 @@ ref_file_stem = the full file path and stem for the reference panel. Assumes it 
 -h will show this usage
 "
 }
+#set default to do the exclusion
+noexclude='false'
 #parse arguments
 while getopts 'o:i:R:eh' flag; do
   case "${flag}" in
-    o) output_stem='${OPTARG}' ;;
-    i) input_fileset='${OPTARG}' ;;
+    o) output_stem="${OPTARG}" ;;
+    i) input_fileset="${OPTARG}" ;;
     R) ref_file_stem="${OPTARG}" ;;
     n) noexclude='true' ;;
     h) display_usage ; exit ;;
@@ -57,17 +59,17 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 #print out inputs
-printf "GWAS QC Part 2 Script\n"
-printf "Input fileset : "$input_fileset
-printf "Reference panel SNP file : "$ref_file
-printf "Stem for pre-imputation files :"$output_stem
+printf "GWAS QC Part 2 Script\n\n"
+printf "Input fileset : $input_fileset \n"
+printf "Reference panel SNP file : $ref_file \n"
+printf "Stem for pre-imputation files :$output_stem \n"
 
 #get file path for input
 input_path=${input_fileset%/*}
 
 #### HWE filter ####
 
-printf "\nRunning the Hardy-Weinberg Equilibrium SNP filter \n"  
+printf "\nStep 1: Running the Hardy-Weinberg Equilibrium SNP filter \n"  
 output=$( printf ${input_fileset}_hwe6 )
 plink --bfile $input_fileset --hwe 0.000001 --make-bed --out $output > /dev/null
 grep -e "--hwe:" -e ' people pass filters and QC' $output.log   
@@ -75,7 +77,7 @@ printf " outfile: $output \n"
 
 #### liftOver ####
 
-printf "Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel"
+printf "\nStep 2: Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel\n"
 #create bed file to start the liftover
 awk '{ print "chr"$1" "$4 -1" "$4" "$2 }' ${output}.bim > ${output}_toliftover.txt
 #lift over
@@ -86,7 +88,7 @@ sed -i 's/^chr//g' ${output}_lifted.txt
 #get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
 grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
 awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
-printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38)."
+printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
 
 #drop 
 plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
@@ -97,12 +99,12 @@ output=${output}_noprobSNPs_chr_bplifted
 
 #### Imputation prep ####
 
-printf "Comparing with the reference panel and preparing files for imputation for each chromosome"
+printf "\nStep 3: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #run imputation prep for each chromosome
-for i in {1..22} ;
+for i in $( seq 1 22 ) ;
 do
-    printf "Beginning chr ${i}..."
+    printf "Beginning chr ${i}...\n"
     #split out this chr
     plink --bfile ${output} --allow-no-sex --chr $i --freq --make-bed --out ${output_stem}_chr$i > /dev/null
 
@@ -124,7 +126,7 @@ do
     #create a sorted *.vcf.gz file using VCFtools and tabix
     vcf-sort ${output_stem}_chr${i}-updated-chr${i}_chrupdate.vcf | bgzip -c > ${output_stem}_chr${i}-updated-chr${i}_chrupdate.vcf.gz;
 
-    printf "Chr ${i} complete..."
+    printf "\nChr ${i} complete...\n"
 done
 
 #print out number of variants actually excluded or which would have been excluded
