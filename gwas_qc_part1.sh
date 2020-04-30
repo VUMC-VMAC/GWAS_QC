@@ -12,12 +12,16 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 
 Usage:
-SCRIPTNAME.sh -o [stem] -i [input_fileset] -r [race_sex_file] -G [stem_1000G]
+SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -r [race_sex_file] -G [stem_1000G]
 
-stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
+
+output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
+
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
+
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
-stem_1000G = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
+
+stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
 
 -h will show this usage
 "
@@ -45,10 +49,12 @@ fi
 
 
 #print out inputs
-printf "GWAS QC Part 1 Script\n\n"
-printf "output stem : $output_stem \n"
-printf "raw input data : $input_fileset \n"
-printf "file with race/ethnicity and sex information : $race_sex_file \n"
+printf "GWAS QC Part 1 Script
+
+Input data : $input_fileset
+Output stem : $output_stem 
+File with race/ethnicity and sex information : $race_sex_file
+"
 #print message if 1000G dataset is not specified
 if [ -z "$stem_1000G" ];
 then
@@ -63,6 +69,7 @@ fi
 if test ! -f get_related_ids.R ;
 then
         printf "\nCurrently in $PWD, but must be in a folder with the necessary scripts to run the GWAS QC! Please move to that folder and run this script again.
+
 Necessary scripts:
 get_related_ids.R
 check_id_length.R
@@ -93,8 +100,7 @@ grep -e 'removed due to missing genotype data' -e ' people pass filters and QC' 
 printf "Output file: $output \n"
 
 ##### Relatedness #####
-printf "\nStep 3: Remove related individuals\n"
-printf "\tIdentify relateds\n"
+printf "\nStep 3: Calculate relatedness and remove related individuals\n"
 plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness > /dev/null
 
 #print out # or related individuals at each threshold
@@ -114,7 +120,6 @@ fi
 Rscript get_related_ids.R ${output}_relatedness
 
 # remove selected ids from the last generated genotype file set
-printf "\tRemove relateds\n"
 printf "Removing $( wc -l ${output}_relatedness_related_ids.txt ) individuals for relatedness.\n"
 output_last=$output
 output=${output}_norelated
@@ -142,8 +147,8 @@ grep -e 'check-sex: ' ${output}_checking_sex.log
 
 #write mismatched sex iids in text file
 awk '{ if($5=="PROBLEM" && $4 != 0 && $3 != 0) print $1" "$2 }' ${output}_checking_sex.sexcheck > ${output}_mismatched_sex_ids.txt
-printf "$( wc -l < ${output}_mismatched_sex_ids.txt ) real sex mismatches (e.g. not ambiguous in the fam or indeterminate based on SNPs)\n"
-printf "$( awk '{ if($3 == 0) print }' ${output}_checking_sex.sexcheck | wc -l ) out of $( wc -l < ${output}.fam ) samples are missing sex.\n"
+printf "$( wc -l < ${output}_mismatched_sex_ids.txt ) real sex mismatches (e.g. not ambiguous in the fam or indeterminate based on SNPs)
+$( awk '{ if($3 == 0) print }' ${output}_checking_sex.sexcheck | wc -l ) out of $( wc -l < ${output}.fam ) samples are missing sex.\n"
 
 #remove individuals in text file
 if [ $( wc -l < ${output}_mismatched_sex_ids.txt ) -gt 0 ];
@@ -207,8 +212,8 @@ plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${outp
 plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
 printf "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning.\n"
 
-printf "\nStep 7: Running heterozygosity check\n"
 ##### heterozygosity check #####
+printf "\nStep 7: Running heterozygosity check\n"
 plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck > /dev/null
 #plot and check for outliers
 Rscript plot_het_check_outliers.R ${output}_pruned_hetcheck
@@ -220,7 +225,7 @@ then
     output=${output}_nohetout
     plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
     grep -e ' people pass filters and QC' ${output}.log
-    printf "Output file: $output \n"
+    printf "Output file: $output \n\n"
     printf "Redoing pruning in the new fileset in preparation for PC calculation within this dataset.\n"
 
     #redo pruning for PC calculation
@@ -258,7 +263,7 @@ Please scan PC plots for any potential technical issues. \n"
 else
     #if 1000f is not set, then output a file for default exclusions, print out message about it, and exit the script
     Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file NA yes
-    printf "PCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
+    printf "\nPCs calculated within the current dataset and plots are saved here: ${output}_pruned_PCplots.pdf. 
 A file with ids for NHW who were not >5 SD from the mean in European samples on PCs1-3 is written out for your convenience if all outliers should be removed: ${output}_nooutliers.txt 
 Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
     exit

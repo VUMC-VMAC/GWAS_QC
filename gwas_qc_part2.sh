@@ -12,9 +12,13 @@ Picks up after decisions have been made regarding PC outlier removal. Input data
 Usage:
 SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -n
 
+
 output_stem = the prefix you want for the files right before imputation
+
 input_fileset = the full path and file stem for the current plink fileset '*[bed,bim,fam]'
+
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
+
 -n = optional argument set to indicate not to exclude variants for not being in or not matching the reference panel; default is to exclude
 
 -h will show this usage
@@ -48,6 +52,7 @@ fi
 if test ! -f get_related_ids.R ;
 then
         printf "Currently in $PWD, but must be in a folder with the necessary scripts to run the GWAS QC! Please move to that folder and run this script again.
+
 Necessary scripts:
 get_related_ids.R
 check_id_length.R
@@ -59,10 +64,12 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 #print out inputs
-printf "GWAS QC Part 2 Script\n\n"
-printf "Input fileset : $input_fileset \n"
-printf "Reference panel SNP file : $ref_file \n"
-printf "Stem for pre-imputation files :$output_stem \n"
+printf "GWAS QC Part 2 Script
+
+Input fileset : $input_fileset 
+Reference panel SNP file : $ref_file
+Stem for pre-imputation files :$output_stem
+"
 
 #get file path for input
 input_path=${input_fileset%/*}
