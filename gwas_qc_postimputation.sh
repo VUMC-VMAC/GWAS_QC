@@ -127,31 +127,8 @@ grep -e "hwe: " -e "removed due to minor allele threshold" ${output}.log
 
 #run PC calculation
 printf "\n\nStep 5: Calculating post-imputation PCs\n\n"
-#prune
-plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
-plink --bfile ${output} --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
-printf "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning.\n"
+sh calc_plot_PCs.sh -i $output -r $race_sex_file
 
-#Run smartpca
-printf "genotypename: ${output}_pruned.bed
-snpname: ${output}_pruned.bim
-indivname: ${output}_pruned.fam
-evecoutname: ${output}_pruned.pca.evec
-evaloutname: ${output}_pruned.eigenvalues
-altnormstyle: NO
-numoutevec: 10
-numoutlieriter: 0
-numoutlierevec: 10
-outliersigmathresh: 6
-qtmode: 0" > ${output}_pruned.par
-smartpca -p ${output}_pruned.par > ${output}_pruned_pccalc.log
-
-#plot
-#arguments: PCA file, race/sex file, 1000G race file (NA if not included), yes/no to write default exclusions
-Rscript plot_PCs_generate_ids_to_keep.R ${output}_pruned.pca.evec $race_sex_file NA yes
-
-printf "\nPCs have been calculated and plots are saved here: ${output}_pruned.pdf
-A list of NHW samples with outliers removed is here: ${output}_pruned_withoutoutliers.txt. 
-Please check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!
+printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!
 "
 
