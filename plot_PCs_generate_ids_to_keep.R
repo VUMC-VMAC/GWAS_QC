@@ -86,7 +86,7 @@ if(race_file != "NA"){
 #create plots
 pdf(paste0(pc_file_stem, ".pdf"))
 
-if(race_1000G_file != NA & race_file != NA){
+if(race_1000G_file != "NA" & race_file != "NA"){
 
 	#color just to see if they cluster by 1000G race
 	ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +

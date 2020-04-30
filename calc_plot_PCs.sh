@@ -62,7 +62,7 @@ then
     Since 1000G files were specified, those samples will be included in PC calculation and plots.\n\n"
 fi
 ##exclusion file to be created?
-if [ $exclusion_file == "no" ];
+if [ "$exclusion_file" = "no" ];
 then
     printf "No file for default exclusions will be created.\n"
 else
@@ -105,7 +105,7 @@ else
     pcainput=${input_stem}
 fi
 
-printf "Prune genotypes\n\n"
+printf "Prune genotypes\n"
 
 #prune and set phenotypes to 1
 plink --bfile $pcainput --indep-pairwise 200 100 0.2 --allow-no-sex --out  ${pcainput}_forprune > /dev/null
@@ -120,8 +120,8 @@ printf "Running smartpca...\n"
 printf "genotypename: ${pcainput}_pruned.bed
 snpname: ${pcainput}_pruned.bim
 indivname: ${pcainput}_pruned.fam
-evecoutname: ${pcainput}.pca.evec
-evaloutname: ${pcainput}.eigenvalues
+evecoutname: ${pcainput}_pruned.pca.evec
+evaloutname: ${pcainput}_pruned.eigenvalues
 altnormstyle: NO
 numoutevec: 10
 numoutlieriter: 0
@@ -137,15 +137,15 @@ printf "smartpca complete! Plotting...\n\n"
 if [ -z $stem_1000G ];
 then
     #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file
-    printf "Plots of PCs calculated with 1000G samples are saved here: ${pcainput}_pruned_PCplots.pdf."
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file NA $exclusion_file
+    printf "Plots of PCs are saved here: ${pcainput}_pruned_PCplots.pdf."
 else  
     #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file NA $exclusion_file
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file
     printf "Plots of PCs calculated with 1000G samples are saved here: ${pcainput}_pruned_PCplots.pdf."
 fi
 
-if [ $exclusion_file == "yes" ];
+if [ "$exclusion_file" = "yes" ];
 then
     printf "A file with ids for NHW who were not PC outliers (>5sd from the mean) is written out for your convenience if all outliers should be removed: ${pcainput}_pruned_nooutliers.txt\n"
 fi

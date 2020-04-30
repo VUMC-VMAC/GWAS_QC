@@ -88,7 +88,7 @@ plink --bfile $input_fileset --geno 0.05 --maf 0.01 --make-bed --out $output > /
 
 grep 'loaded from' $output.log  | sed  's/loaded from.*//' | head -n2
 grep -e 'missing genotype data' -e 'minor allele threshold' -e ' people pass filters and QC' $output.log
-printf "Output file: $output \n"
+printf "Output file: $output \n\n"
 
 ##### person missingness #####
 printf '%s\n' "Step 2: remove subjects w/ >1% missingness"
