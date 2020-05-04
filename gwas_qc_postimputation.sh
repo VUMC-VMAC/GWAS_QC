@@ -14,7 +14,9 @@ SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file]
 
 stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 imputation_results_folder = the folder to which the imputation results have been downloaded which also contains a file called pass.txt with the password to unzip the imputation results files
+
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
+
 snp_names_file = a file for converting the SNP names from imputation results to rs numbers. Must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
 -h will display this message
