@@ -127,6 +127,28 @@ output=${output}_maf01_hwe6
 plink --bfile ${output_last} --maf 0.01 --hwe 0.000001 --make-bed --out ${output} > /dev/null
 grep -e "hwe: " -e "removed due to minor allele threshold" ${output}.log
 
+# prune for heterozygosity check
+printf "\n\nStep 5 : Pruning and running heterozygosity check\n"
+plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
+plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
+rm ${output}_prune.*
+printf "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning.\n"
+
+##### heterozygosity check #####
+plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck > /dev/null
+#plot and check for outliers
+Rscript plot_het_check_outliers.R ${output}_pruned_hetcheck
+
+#if there are outliers >6 sd from the F stat mean, remove them
+if [ -f "${output}_pruned_hetcheck_outliers.txt" ];
+then
+    output_last=${output}
+    output=${output}_nohetout
+    plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
+    grep -e ' people pass filters and QC' ${output}.log
+    printf "Output file: $output \n"
+fi
+
 #run PC calculation
 printf "\n\nStep 5: Calculating post-imputation PCs\n\n"
 sh calc_plot_PCs.sh -i $output -r $race_sex_file
