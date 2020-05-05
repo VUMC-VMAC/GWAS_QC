@@ -82,13 +82,13 @@ then
     
     #subset 1000G dataset to only variants present here
     plink --bfile ${stem_1000G}  --output-missing-phenotype 1 --extract ${input_stem}_snps.txt --make-bed --out ${input_stem}_1000G_overlapping > /dev/null
-    stem_1000G=${input_stem}_1000G_overlapping
-    num_1000G_snps=$( wc -l < ${input_stem}_1000G_overlapping.bim )
+    stem_1000G_formerge=${input_stem}_1000G_overlapping
+    num_1000G_snps=$( wc -l < ${stem_1000G_formerge}.bim )
     printf "$num_1000G_snps overlap between 1000G and the current dataset\n\n"
     
     #attempt merge (keep the script from failing when this command fails)
     pcainput=${input_stem}_1000G_merged
-    plink --bfile ${input_stem} --bmerge ${stem_1000G} --allow-no-sex --make-bed --out ${pcainput} || true &> /dev/null
+    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true &> /dev/null
 
 
     if [ -f "${pcainput}-merge.missnp" ];
@@ -96,8 +96,8 @@ then
 
 	#remove the mismatching variants
 	plink --bfile ${input_stem} --exclude ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${input_stem}_formerge > /dev/null
-	plink --bfile ${stem_1000G} --exclude ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G}_formerge  > /dev/null
-	plink --bfile ${input_stem}_formerge --bmerge ${stem_1000G}_formerge --allow-no-sex --make-bed --out ${pcainput}  > /dev/null
+	plink --bfile ${stem_1000G_formerge} --exclude ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_formerge  > /dev/null
+	plink --bfile ${input_stem}_formerge --bmerge ${stem_1000G_formerge}_formerge --allow-no-sex --make-bed --out ${pcainput}  > /dev/null
 
 	#filter to overlapping
 	plink --bfile ${pcainput} --geno 0.05 --allow-no-sex --make-bed --out ${pcainput}_geno05  > /dev/null
