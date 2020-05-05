@@ -12,7 +12,8 @@ This script will unzip the imputation results (assuming password is saved in pas
 Usage:
 SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file]
 
-stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
+output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
+
 imputation_results_folder = the folder to which the imputation results have been downloaded which also contains a file called pass.txt with the password to unzip the imputation results files
 
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
@@ -27,7 +28,7 @@ snp_names_file = a file for converting the SNP names from imputation results to 
 while getopts 'o:i:r:s:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
-    i) input_fileset="${OPTARG}" ;;
+    i) imputation_results_folder="${OPTARG}" ;;
     r) race_sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;
     h) display_usage ; exit ;;
@@ -37,7 +38,7 @@ while getopts 'o:i:r:s:h' flag; do
 done
 
 #check to make sure necessary arguments are present                                                                                                    
-if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$race_sex_file" ] ;
+if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$race_sex_file" ] || [ -z "$snp_names_file" ] ;
 then
     printf "Error: Necessary arguments not present!\n\n"
     display_usage
@@ -79,7 +80,7 @@ fi
 printf "Step 1 : Unzipping imputation results\n\n"
 for i in $( ls ${imputation_results_folder}/*.zip );
 do
-    unzip -P $( cat ${imputation_results_folder}/pass.txt $i 
+    unzip -P $( cat ${imputation_results_folder}/pass.txt ) $i -d $imputation_results_folder
 done
 
 #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
