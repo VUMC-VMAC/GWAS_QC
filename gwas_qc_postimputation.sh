@@ -18,7 +18,7 @@ imputation_results_folder = the folder to which the imputation results have been
 
 race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
 
-snp_names_file = a file for converting the SNP names from imputation results to rs numbers. Must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
+snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
 -h will display this message
 "
@@ -51,7 +51,7 @@ printf "GWAS QC Post-imputation Script
 Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : $imputation_results_folder
 Race/sex information file : $race_sex_file
-File for SNP name conversion : $snp_names_file
+Stem for files for SNP name conversion : $snp_names_file
 "
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
@@ -91,7 +91,7 @@ for i in $(seq 1 22); do
 
     #get list of duplicates SNPs (they have more than 1 row in the bim file) and remove
     awk '{ print $2 }' ${output_stem}_chr${i}_temp.bim | uniq -d > ${output_stem}_chr${i}_temp.dups ;
-    plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${i}_temp.dups --make-bed --out ${output_stem}_chr${i}_temp_nodups > /dev/null
+    plink2 --bfile ${output_stem}_chr${i}_temp --update-name ${snp_names_file}_chr${i}.txt --exclude ${output_stem}_chr${i}_temp.dups --make-bed --out ${output_stem}_chr${i}_temp_nodups > /dev/null
 done
 
 #print out numbers of variants
@@ -115,11 +115,11 @@ plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev
 grep 'pass filters and QC' ${output}.log
 
 #update SNP names, sex, and perform standard SNP filtering
-printf "Step 4 : Updating variant ids, sex in the fam file, and applying standard variant filters\n\n"
+printf "Step 4 : Updating sex in the fam file and applying standard variant filters\n\n"
 #update SNP names and add sex back into fam file
 output_last=$output
-output=${output}_names
-plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --update-name ${snp_names_file} --make-bed --out ${output} > /dev/null
+output=${output}_sex
+plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --make-bed --out ${output} > /dev/null
 grep -e "people updated" -e "values updated" ${output}.log
 
 # SNP filters

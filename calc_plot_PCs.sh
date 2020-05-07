@@ -103,7 +103,15 @@ then
 	plink --bfile ${pcainput} --geno 0.05 --allow-no-sex --make-bed --out ${pcainput}_geno05  > /dev/null
 	pcainput=${pcainput}_geno05
 	printf "$( wc -l < ${pcainput}.bim ) variants in dataset merged with 1000G\n\n"
+    elif [ -f "${pcainput}.bed" ];
+    then
+        #this means the first merge worked miraculously
+        echo "";
+    else
+        printf "Something went wrong with the merge! Please check the ${pcainput}.log file!\n\n"
+        exit 1 ;
     fi
+
 else
     pcainput=${input_stem}
 fi

@@ -27,7 +27,7 @@ ref_file_stem = the full file path and stem for the reference panel. Assumes it 
 #set default to do the exclusion
 noexclude='false'
 #parse arguments
-while getopts 'o:i:R:eh' flag; do
+while getopts 'o:i:R:nh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
@@ -67,7 +67,7 @@ fi
 printf "GWAS QC Part 2 Script
 
 Input fileset : $input_fileset 
-Reference panel SNP file : $ref_file
+Reference panel SNP file : $ref_file_stem
 Stem for pre-imputation files :$output_stem
 "
 
@@ -121,18 +121,16 @@ do
     #if noexclude, then skip the exclusion step in the plink file
     if [ "$noexclude" = true ];
     then
-	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${stem}_chr${i}|g" ${input_path}/Run-plink.sh
+	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${output_stem}_chr${i}|g" ${input_path}/Run-plink.sh
     fi
 
     #run created script with all the plink commands; breaks into files for each chr
     sed -i "s|rm TEMP|rm ${input_path}/TEMP|" ${input_path}/Run-plink.sh
     sh ${input_path}/Run-plink.sh > /dev/null
 
-    #update chr code to have chr# rather than just #
-    bcftools annotate --rename-chrs update_chr_names_b38.txt ${output_stem}_chr${i}-updated-chr${i}.vcf -o ${output_stem}_chr${i}-updated-chr${i}_chrupdate.vcf -O v 
-    #create a sorted *.vcf.gz file using VCFtools and tabix
-    vcf-sort ${output_stem}_chr${i}-updated-chr${i}_chrupdate.vcf | bgzip -c > ${output_stem}_chr${i}-updated-chr${i}_chrupdate.vcf.gz;
-
+    #update chr code to have chr# rather than just #, sort and output vcf
+    mkdir ${input_path}/tmp${i}/
+    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${input_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz
     printf "\nChr ${i} complete...\n"
 done
 
@@ -147,5 +145,5 @@ fi
 #remove the intermediate .vcf files
 rm ${input_path}/*.vcf
 
-printf "\nConversion complete! Upload the files (${output_stem}-updated-chr*_chrupdate.vcf.gz) to the imputation server.\n"
+printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 

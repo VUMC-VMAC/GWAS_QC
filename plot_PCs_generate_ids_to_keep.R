@@ -89,42 +89,54 @@ pdf(paste0(pc_file_stem, ".pdf"))
 if(race_1000G_file != "NA" & race_file != "NA"){
 
 	#color just to see if they cluster by 1000G race
-	ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
+	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
-	ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
+	print(a)
+	b <- ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
-	ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
+	print(b)
+	c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
+	print(c)
 
 	#remove 1000G samples for the rest of the plots
 	data <- data[data$set == "current",]
 }
 if(race_file != "NA"){
 	#regardless of whether 1000G data is here or not, if race for this dataset is present, plot it with everyone
-	ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
+	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
-	ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
+	print(a)
+	b <- ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
-	ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
+	print(b)
+	c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
+	print(c)
 
 	#plot in non-hispanic whites 
 	data <- data[data$race == "White",]
-	ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
+	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
-	ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
+	print(a)
+	b <- ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
-	ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
+	print(b)
+	c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
+	print(c)
 }
 if(race_file == "NA"){
 	#if no race information is available, plot everyone with lines based on whole sample
-	ggplot(data = data, aes(x=PC1, y=PC2)) + geom_point()  +
+	a <- ggplot(data = data, aes(x=PC1, y=PC2)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
-	ggplot(data = data, aes(x=PC2, y=PC3)) + geom_point()  +
+	print(a)
+	b <- ggplot(data = data, aes(x=PC2, y=PC3)) + geom_point()  +
 	  geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
-	ggplot(data = data, aes(x=PC3, y=PC4)) + geom_point()  +
+	print(b)
+	c <- ggplot(data = data, aes(x=PC3, y=PC4)) + geom_point()  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
+	print(c)
 }
 
 dev.off()
