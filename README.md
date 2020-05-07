@@ -39,7 +39,7 @@ singularity exec --contain --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/
 /bin/bash -c "cd /scripts/ ; sh gwas_qc_part2.sh \
 -i /inputs/BIOCARD_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW \
 -o /inputs/BIOCARD_genotyped_NHW_cleaned \
--R /ref/topmed_imputed_ref_snps |& tee /inputs/VMAP_qc_p2.log"
+-R /ref/topmed_imputed_ref_snps -n |& tee /inputs/VMAP_qc_p2.log"
 ```
 
 Submit that using slurm:
