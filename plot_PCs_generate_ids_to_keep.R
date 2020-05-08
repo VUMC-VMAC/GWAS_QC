@@ -26,7 +26,13 @@ if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   names(id_hash) <- c("FID", "IID", "FID_hash", "IID_hash")
   names(pcs)[names(pcs)== "FID"] <- "FID_hash"
   names(pcs)[names(pcs)== "IID"] <- "IID_hash"
-  pcs <- merge(pcs, id_hash, by = c("FID_hash", "IID_hash"))
+  pcs <- merge(pcs, id_hash, by = c("FID_hash", "IID_hash"), all.x = T)
+
+  if(race_1000G_file != "NA"){
+    #replace the 1000G ids if that file is present
+    pcs$FID[is.na(pcs$FID)] <- pcs$FID_hash[is.na(pcs$FID)]
+    pcs$IID[is.na(pcs$IID)] <- pcs$IID_hash[is.na(pcs$IID)]
+  }
   
   #write out file to update ids
   update_ids_filename <- paste0(pc_file_stem, "_update_ids.txt")

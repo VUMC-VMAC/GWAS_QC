@@ -88,7 +88,7 @@ then
     
     #attempt merge (keep the script from failing when this command fails)
     pcainput=${input_stem}_1000G_merged
-    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true &> /dev/null
+    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true 2>&1 /dev/null
 
 
     if [ -f "${pcainput}-merge.missnp" ];
