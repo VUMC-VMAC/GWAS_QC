@@ -32,14 +32,7 @@ To run the part 2 script, create a slurm script like this:
 #SBATCH --time=06:00:00
 #SBATCH --account=h_vmac
 
-singularity exec --contain --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/inputs/ \
-    --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-    --bind /data/h_vmac/GWAS_QC/:/scripts/ \
-    /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg \
-/bin/bash -c "cd /scripts/ ; sh gwas_qc_part2.sh \
--i /inputs/BIOCARD_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW \
--o /inputs/BIOCARD_genotyped_NHW_cleaned \
--R /ref/topmed_imputed_ref_snps -n |& tee /inputs/VMAP_qc_p2.log"
+singularity exec --contain --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/inputs/ --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /data/h_vmac/GWAS_QC/:/scripts/ /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg /bin/bash -c "cd /scripts/ ; sh gwas_qc_part2.sh -i /inputs/BIOCARD_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW -o /inputs/BIOCARD_genotyped_NHW_cleaned -R /ref/topmed_imputed_ref_snps -n |& tee /inputs/BIOCARD_qc_p2.log"
 ```
 
 Submit that using slurm:
@@ -47,3 +40,7 @@ Submit that using slurm:
 sbatch /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/BIOCARD_NHW_run_gwas_qc_part2.slurm
 ```
 
+Upload the resulting .vcf.gz files to the TOPMed Imputation Server (https://imputation.biodatacatalyst.nhlbi.nih.gov/#!). Once imputation is complete, download the results and save the decryption password (received in an email from the imputation server) to a file called pass.txt in the folder with the imputation results. Then, run the post-imputation QC like so:
+```
+POST-IMPUTATION QC COMMAND
+```
