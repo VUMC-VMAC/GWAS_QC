@@ -42,5 +42,9 @@ sbatch /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/BIOCARD_NHW_run_gwas_qc_part2
 
 Upload the resulting .vcf.gz files to the TOPMed Imputation Server (https://imputation.biodatacatalyst.nhlbi.nih.gov/#!). Once imputation is complete, download the results and save the decryption password (received in an email from the imputation server) to a file called pass.txt in the folder with the imputation results. Then, run the post-imputation QC like so:
 ```
-POST-IMPUTATION QC COMMAND
+singularity exec --contain --bind /nfs/DATA/BIOCARD/GWAS/:/inputs/      --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind  /data/h_vmac/GWAS_QC/:/scripts/      /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg /bin/bash -c  "cd /scripts/ ; sh gwas_qc_postimputation.sh -z \
+-i /inputs/Imputed/Raw/TOPMed_imputation/ \
+-o /inputs/Imputed/Cleaned/QC_topmed/BIOCARD_imputed_NHW \
+-r /inputs/Genotyped/Cleaned/QC_topmed/BIOCARD_race_sex.tx \
+-s /ref/topmed_snp_names |& tee  /inputs/Imputed/Cleaned/QC_topmed/BIOCARD_NHW_qc_postimputation2.log"
 ```
