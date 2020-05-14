@@ -2,6 +2,7 @@ Notes of this to (maybe) add the the GWAS QC scripts
 
 Part 1
 - fix the logging of number of related individuals (wc -l < filename rather than wc -l filename)
+- color 5 sd outliers on het check plot
 
 Part 2 
 - flag/argument to indicate build of dataset
