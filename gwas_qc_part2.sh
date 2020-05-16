@@ -10,7 +10,7 @@ display_usage() {
 Picks up after decisions have been made regarding PC outlier removal. Input dataset can be either the non-Hispanic white subset or include all races present. This script will perform the Hardy-Weinberg filter and prepare the files for upload to the TopMed Imputation Server. Will create all files within the same folder as the current plink fileset.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -n
+SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -b [input genome build] -n
 
 
 output_stem = the prefix you want for the files right before imputation
@@ -19,19 +19,23 @@ input_fileset = the full path and file stem for the current plink fileset '*[bed
 
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
 
+-b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the liftOver step.
+
 -n = optional argument set to indicate not to exclude variants for not being in or not matching the reference panel; default is to exclude
 
 -h will show this usage
 "
 }
-#set default to do the exclusion
+#set default to do the exclusion and build to b37
 noexclude='false'
+build='b37'
 #parse arguments
-while getopts 'o:i:R:nh' flag; do
+while getopts 'o:i:R:b:nh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
     R) ref_file_stem="${OPTARG}" ;;
+    b) build="${OPTARG}" ;;
     n) noexclude='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
@@ -84,25 +88,43 @@ printf " outfile: $output \n"
 
 #### liftOver ####
 
-printf "\nStep 2: Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel\n"
-#create bed file to start the liftover
-awk '{ print "chr"$1" "$4 -1" "$4" "$2 }' ${output}.bim > ${output}_toliftover.txt
-#lift over
-./liftOver ${output}_toliftover.txt hg19ToHg38.over.chain.gz ${output}_lifted.txt ${output}_unlifted.txt
-#remove "chr" from chromosome column
-sed -i 's/^chr//g' ${output}_lifted.txt
+#check the build, decide whether to do the liftOver and, if so, which chain file to use
+if [ "$build" = "b37" ];
+then
+    printf "\nStep 2: Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel\n"
+    chain_file="hg19ToHg38.over.chain.gz"
+elif [ "$build" = "b36" ];
+then 
+    printf "\nStep 2: Lifting over the genotype file from build 36 to build 38 to match the TopMed reference panel\n"
+    chain_file="hg18ToHg38.over.chain.gz"
+elif [ "$build" = "b38" ];
+then
+    printf "\nStep 2: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
+fi
 
-#get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
-grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
-awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
-printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
+#if the chain file variable is set, then run the liftOver
+if [ ! -z "$chain_file" ];
+then
+    #create bed file to start the liftover
+    awk '{ print "chr"$1" "$4 -1" "$4" "$2 }' ${output}.bim > ${output}_toliftover.txt
+    #lift over
+    ./liftOver ${output}_toliftover.txt $chain_file ${output}_lifted.txt ${output}_unlifted.txt
+    #remove "chr" from chromosome column
+    sed -i 's/^chr//g' ${output}_lifted.txt
 
-#drop 
-plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
-#update the chr and BP positions for remaining
-plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr > /dev/null
-plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted > /dev/null
-output=${output}_noprobSNPs_chr_bplifted
+    #get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
+    grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
+    awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
+    printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
+
+    #drop 
+    plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
+    #update the chr and BP positions for remaining
+    plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr > /dev/null
+    plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted > /dev/null
+    output=${output}_noprobSNPs_chr_bplifted
+fi
+
 
 #### Imputation prep ####
 

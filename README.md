@@ -45,6 +45,6 @@ Upload the resulting .vcf.gz files to the TOPMed Imputation Server (https://impu
 singularity exec --contain --bind /nfs/DATA/BIOCARD/GWAS/:/inputs/      --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind  /data/h_vmac/GWAS_QC/:/scripts/      /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg /bin/bash -c  "cd /scripts/ ; sh gwas_qc_postimputation.sh -z \
 -i /inputs/Imputed/Raw/TOPMed_imputation/ \
 -o /inputs/Imputed/Cleaned/QC_topmed/BIOCARD_imputed_NHW \
--r /inputs/Genotyped/Cleaned/QC_topmed/BIOCARD_race_sex.tx \
+-r /inputs/Genotyped/Cleaned/QC_topmed/BIOCARD_race_sex.txt \
 -s /ref/topmed_snp_names |& tee  /inputs/Imputed/Cleaned/QC_topmed/BIOCARD_NHW_qc_postimputation2.log"
 ```
