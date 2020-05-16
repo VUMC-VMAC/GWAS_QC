@@ -32,8 +32,10 @@ To run the part 2 script, create a slurm script like this:
 #SBATCH --time=06:00:00
 #SBATCH --account=h_vmac
 
-singularity exec --contain --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/inputs/ --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /data/h_vmac/GWAS_QC/:/scripts/ /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg /bin/bash -c "cd /scripts/ ; sh gwas_qc_part2.sh -i /inputs/BIOCARD_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW -o /inputs/BIOCARD_genotyped_NHW_cleaned -R /ref/topmed_imputed_ref_snps -n |& tee /inputs/BIOCARD_qc_p2.log"
+singularity exec --contain --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/inputs/ --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /data/h_vmac/GWAS_QC/:/scripts/ /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg /bin/bash -c "cd /scripts/ ; sh gwas_qc_part2.sh -i /inputs/BIOCARD_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW -o /inputs/BIOCARD_genotyped_NHW_cleaned -R /ref/topmed_imputed_ref_snps -n"
 ```
+Note the -n flag which specifies to not exclude variants based on the reference panel. Additionally, one could add the -b flag followed by the genome build of the input dataset (ie b36, b37, or b38); the default is b37.
+
 
 Submit that using slurm:
 ```
