@@ -109,7 +109,7 @@ fi
 printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
 for i in $(seq 1 22); do
     #restrict to variants with R2>=0.80
-    plink2 --vcf ${imputation_results_folder}/chr${i}.dose.vcf.gz --id-delim _ --exclude-if-info "R2<0.8" --make-bed --out ${output_stem}_chr${i}_temp > /dev/null
+    plink2 --vcf ${imputation_results_folder}/chr${i}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --make-bed --out ${output_stem}_chr${i}_temp > /dev/null
 
     #get list of variants which have the same position (by base pair since this is just 1 chromosome) and remove
     dup_pos=$( awk '{ print $4 }' ${output_stem}_chr${i}_temp.bim | uniq -d )
@@ -142,6 +142,12 @@ grep 'pass filters and QC' ${output}.log
 
 #update SNP names, sex, and perform standard SNP filtering
 printf "Step 4 : Updating sex in the fam file and applying standard variant filters\n\n"
+#update person ids using the race and sex file
+output_last=$output
+output=${output}_IDs
+awk '{ print "0 "$1"_"$2" "$1" "$2 }' $race_sex_file > ${output_last}_update_ids.txt
+plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --make-bed --out $output > /dev/null
+
 #update SNP names and add sex back into fam file
 output_last=$output
 output=${output}_sex

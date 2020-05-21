@@ -86,22 +86,36 @@ then
     num_1000G_snps=$( wc -l < ${stem_1000G_formerge}.bim )
     printf "$num_1000G_snps overlap between 1000G and the current dataset\n\n"
     
-    #attempt merge (keep the script from failing when this command fails)
+    #attempt merge  (catch output into a bash variable so it really doesn't print and be confusing)
     pcainput=${input_stem}_1000G_merged
-    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true 2>&1 /dev/null
+    tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true )
 
 
     if [ -f "${pcainput}-merge.missnp" ];
     then
 
-	#remove the mismatching variants
-	plink --bfile ${input_stem} --exclude ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${input_stem}_formerge > /dev/null
-	plink --bfile ${stem_1000G_formerge} --exclude ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_formerge  > /dev/null
-	plink --bfile ${input_stem}_formerge --bmerge ${stem_1000G_formerge}_formerge --allow-no-sex --make-bed --out ${pcainput}  > /dev/null
+	#flip reference alleles on 1000G
+	plink --bfile ${stem_1000G_formerge} --flip ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped  > /dev/null
+
+	#re-attempt the merge (catch output into a bash variable so it really doesn't print and be confusing)
+	tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped --allow-no-sex --make-bed --out ${pcainput}_v2 || true )
+
+	#check to see if there are still problem variants
+	if [ -f "${pcainput}_v2-merge.missnp" ];
+	then
+
+	    #if there are issues, just remove them
+	    plink --bfile ${stem_1000G_formerge}_flipped --exclude ${pcainput}_v2-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped_noprobsnps > /dev/null
+
+	    #re-attempt the merge
+	    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped_noprobsnps --allow-no-sex --make-bed --out ${pcainput} > /dev/null
+	else
+	    pcainput=${pcainput}_v2
+	fi
 
 	#filter to overlapping
-	plink --bfile ${pcainput} --geno 0.05 --allow-no-sex --make-bed --out ${pcainput}_geno05  > /dev/null
-	pcainput=${pcainput}_geno05
+	plink --bfile ${pcainput} --geno 0.01 --allow-no-sex --make-bed --out ${pcainput}_geno01  > /dev/null
+	pcainput=${pcainput}_geno01
 	printf "$( wc -l < ${pcainput}.bim ) variants in dataset merged with 1000G\n\n"
     elif [ -f "${pcainput}.bed" ];
     then

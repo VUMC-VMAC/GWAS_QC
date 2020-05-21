@@ -77,6 +77,7 @@ Stem for pre-imputation files :$output_stem
 
 #get file path for input
 input_path=${input_fileset%/*}
+output_path=${output_stem%/*}
 
 #### HWE filter ####
 
@@ -143,29 +144,29 @@ do
     #if noexclude, then skip the exclusion step in the plink file
     if [ "$noexclude" = true ];
     then
-	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${output_stem}_chr${i}|g" ${input_path}/Run-plink.sh
+	sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}_chr${i}|g" ${output_path}/Run-plink.sh
     fi
 
     #run created script with all the plink commands; breaks into files for each chr
-    sed -i "s|rm TEMP|rm ${input_path}/TEMP|" ${input_path}/Run-plink.sh
-    sh ${input_path}/Run-plink.sh > /dev/null
+    sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
+    sh ${output_path}/Run-plink.sh > /dev/null
 
     #update chr code to have chr# rather than just #, sort and output vcf
-    mkdir ${input_path}/tmp${i}/
-    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${input_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz
+    mkdir ${output_path}/tmp${i}/
+    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz
     printf "\nChr ${i} complete...\n"
 done
 
 #print out number of variants actually excluded or which would have been excluded
 if [ "$noexclude" = true ];
 then 
-    printf "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+    printf "Would have removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
-    printf "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
+    printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
 fi
 
 #remove the intermediate .vcf files
-rm ${input_path}/*.vcf
+rm ${output_path}/*.vcf
 
 printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 
