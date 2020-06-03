@@ -2,23 +2,23 @@
 
 Here are the general steps in this pipeline:
 1.	Pre-Imputation QC Part 1
-  - Variant filtering excluding for missingness (>5%) and minor allele frequency (<0.01)
-  - Sample missingness filtering (5%)
-  - Relatedness check (removes 1 of each pair of second degree relatives and both of each pair with a pi-hat >0.9)
-  - Sex check (removes individuals with discrepancies)
-  - Heterozygosity check
-  - PC calculation and plotting
+  	- Variant filtering excluding for missingness (>5%) and minor allele frequency (<0.01)
+  	- Sample missingness filtering (5%)
+  	- Relatedness check (removes 1 of each pair of second degree relatives and both of each pair with a pi-hat >0.9)
+  	- Sex check (removes individuals with discrepancies)
+  	- Heterozygosity check
+  	- PC calculation and plotting
 2.	Pre-Imputation QC Part 2
-  - Hardy-Weinberg filter (p<1e-6)
-  - Lifts to build 38 if necessary
-  - Prepares files for uploading to the imputation server
+  	- Hardy-Weinberg filter (p<1e-6)
+  	- Lifts to build 38 if necessary
+  	- Prepares files for uploading to the imputation server
 3.	TOPMed Imputation
 4.	Post-Imputation QC
-  - Variant filtering excluding for.
-    - imputation quality (<0.8)
-    - multi-allelic variants
-    - Hardy-Weinberg equilibrium (p<1e-6) and minor allele frequency (<0.01)
-.	PC calculation
+  	- Variant filtering excluding for.
+    	  - imputation quality (<0.8)
+    	  - multi-allelic variants
+    	  - Hardy-Weinberg equilibrium (p<1e-6) and minor allele frequency (<0.01)
+	- PC calculation
 
 
 Each step (except the TOPMed imputation) is run as a shell script in a singularity. The usage message for each of the scripts can be shown by running the script with the -h flag. 
@@ -45,7 +45,7 @@ Files needed for the Pre-Imputation QC Part 1 script:
 -	Raw genotype files 
 -	Singularity container (current version: gwas_qc_singularity_v2.1.simg)
 -	Files with FID, IID, race, and sex for each set
-  - The race column should have non-Hispanic whites coded as "White" and none of the values can have spaces. Sex should be coded as 
+  	- The race column should have non-Hispanic whites coded as "White" and none of the values can have spaces. Sex should be coded as 
 -	1000G files to use in calculating PCs (optional)
 
 
@@ -65,7 +65,7 @@ Pre-Imputation QC Part 1 output files:
 -	Main log file
 -	Heterozygosity plot: file ending in *_pruned_hetcheck.png
 -	PC plots: 
-  - 2 pdfs (if you supplied 1000G data), one ending in *_1000G_merged_geno01_pruned.pdf and the other one ending in *_pruned.pdf (no 1000G)
+  	- 2 pdfs (if you supplied 1000G data), one ending in *_1000G_merged_geno01_pruned.pdf and the other one ending in *_pruned.pdf (no 1000G)
 
 Once the part 1 script completes, view the resulting PC plots and make decisions regarding PC outliers. There will be a file output by default that includes on non-Hispanic white ids of individuals who did not fall more than 5 standard deviations from the mean of 1000G European samples and whites in the input dataset. If you decide to use this default inclusion file, run a plink command to keep those samples (using the --keep plink flag).
 
@@ -111,7 +111,7 @@ Files needed for the Pre-Imputation QC Part 2 script:
 -	Singularity container (current version: gwas_qc_singularity_v2.1.simg)
 -	Imputation results and password to unzip them
 - File with race and sex for the dataset (used in the pre-imputation part 1 step)
-- Files to convert variant ids back to rs number
+- Files to convert variant ids back to rs number 
 
 To run the post-imputation QC, run a command similar to the one below.
 ```
@@ -126,7 +126,7 @@ singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
 ```
 
 Post-imputation QC main output files:
-- Main log file (COHORT_NHW_qc_postimputation.log)
+- Main log file
 - PCs and PC plots
 
 After the post-imputation QC runs, check the principal components for outliers, removing any if necessary and recalculating PCs. 
