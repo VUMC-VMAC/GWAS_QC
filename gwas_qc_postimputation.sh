@@ -132,7 +132,7 @@ printf "Step 3 : Merging all chromosomes into one file\n"
 echo "" | tee ${output_stem}_merge_list.txt
 for i in $( seq 1 22 );
 do
-    printf "${output_stem}_chr${i}_temp_nodups.bed  ${output_stem}_chr${i}_temp_nodups.bim  ${output_stem}_chr${i}_temp_nodups.fam\n" >> ${output_stem}_merge_list.txt ;
+    printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
 done
 
 #merge individual chromosome files to be one large file

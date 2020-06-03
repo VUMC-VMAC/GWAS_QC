@@ -1,12 +1,14 @@
-Notes of this to (maybe) add the the GWAS QC scripts
+Notes of things to (maybe) add the the GWAS QC scripts
 
 Part 1
-- fix the logging of number of related individuals (wc -l < filename rather than wc -l filename)
 - color 5 sd outliers on het check plot
 
 Part 2 
-- flag/argument to indicate build of dataset
 - save pre-imputation files in a separate folder?
 
 Post-imputation
-- add a flag for whether the files have been unzipped or not
+- fix the name of the pdf that's written to the log file (doesn't match the actual file that's created)
+
+PC plotting
+- add in a catch for the issue of duplicate variant IDs so that those variants are removed (rather than causing the script to fail)
+- add a catch for id length to the PC calculation and plotting script (rather than having it within the GWAS QC part 1 script)
