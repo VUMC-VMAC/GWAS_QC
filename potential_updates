@@ -12,3 +12,5 @@ Post-imputation
 PC plotting
 - add in a catch for the issue of duplicate variant IDs so that those variants are removed (rather than causing the script to fail)
 - add a catch for id length to the PC calculation and plotting script (rather than having it within the GWAS QC part 1 script)
+
+More on the TOPMed files side of things, but check to see why we are getting the "impossible allele assignment" warning when prepping for imputation.
