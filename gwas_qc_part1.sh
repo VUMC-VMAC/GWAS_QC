@@ -3,7 +3,7 @@
 # Author 2: Emily Mahoney 2020-04-09
 
 #fail on error
-set -e
+set -eu
 
 #define usage
 display_usage() {

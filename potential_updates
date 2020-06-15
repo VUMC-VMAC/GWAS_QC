@@ -1,5 +1,8 @@
 Notes of things to (maybe) add the the GWAS QC scripts
 
+All
+- make it possible to run specific steps
+
 Part 1
 - color 5 sd outliers on het check plot
 
@@ -8,6 +11,7 @@ Part 2
 
 Post-imputation
 - fix the name of the pdf that's written to the log file (doesn't match the actual file that's created)
+- make sure the updating sex only happens if sex is present in the supplied file
 
 PC plotting
 - add in a catch for the issue of duplicate variant IDs so that those variants are removed (rather than causing the script to fail)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #fail if error
-set -e
+set -eu
 
 #define usage
 display_usage() {
