@@ -185,26 +185,6 @@ fi
 ##### PC calculation ####
 printf "\nStep 5: Calculating post-imputation PCs\n\n"
 
-#do quick check of length of ids
-Rscript check_id_length.R $output
-
-#get names of new person/SNP ids files (will only have been created if there need to be some updates)
-fam_ids=${output}_dummy_famids.txt
-bim_ids=${output}_shorter_bimids.txt
-
-if [ -f "$fam_ids" ];
-then
-    output_last=$output
-    output=${output}_dummy_famids
-    plink --bfile $output_last --update-ids $fam_ids --make-bed --out ${output} > /dev/null
-fi
-if [ -f "$bim_ids" ];
-then
-    output_last=$output
-    output=${output}_ids
-    plink --bfile $output_last --update-name $bim_ids --make-bed --out ${output} > /dev/null
-fi
-
 # Calculate PCs
 sh calc_plot_PCs.sh -i $output -r $race_sex_file
 

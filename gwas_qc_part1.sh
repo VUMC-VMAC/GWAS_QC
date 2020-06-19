@@ -184,28 +184,7 @@ printf "Output file: $output \n"
 
 ##### prep for PC calculations #####
 
-printf "\nStep 6: Checking id length for PC calculation and pruning dataset for heterozygosity check\n"
-
-#do quick check of length of ids
-Rscript check_id_length.R $output
-
-#get names of new person/SNP ids files (will only have been created if there need to be some updates)
-fam_ids=${output}_dummy_famids.txt
-bim_ids=${output}_shorter_bimids.txt
-
-if [ -f "$fam_ids" ];
-then
-    output_last=$output
-    output=${output}_dummy_famids
-    plink --bfile $output_last --update-ids $fam_ids --make-bed --out ${output} > /dev/null
-fi
-
-if [ -f "$bim_ids" ];
-then
-    output_last=$output
-    output=${output}_ids
-    plink --bfile $output_last --update-name $bim_ids --make-bed --out ${output} > /dev/null
-fi
+printf "\nStep 6: Pruning dataset for heterozygosity check\n"
 
 #prune and set phenotypes to 1
 plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null

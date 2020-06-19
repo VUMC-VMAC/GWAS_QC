@@ -72,6 +72,26 @@ fi
 
 ########################################### start of prep for PC calculation #######################################
 
+#do quick check of length of ids
+Rscript check_id_length.R $input_stem
+
+#get names of new person/SNP ids files (will only have been created if there need to be some updates)
+fam_ids=${input_stem}_dummy_famids.txt
+bim_ids=${input_stem}_shorter_bimids.txt
+
+if [ -f "$fam_ids" ];
+then
+    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids > /dev/null
+    input_stem=${input_stem}_dummy_famids
+fi
+
+if [ -f "$bim_ids" ];
+then
+    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids > /dev/null
+    input_stem=${input_stem}_shorter_bimids
+fi
+
+
 #if 1000G data was supplied, then merge it with the input dataset
 if [ ! -z $stem_1000G ];
 then
