@@ -43,7 +43,7 @@ Supplementary files not included in this github:
 
 Files needed for the Pre-Imputation QC Part 1 script:
 -	Raw genotype files 
--	Singularity container (current version: gwas_qc_singularity_v2.1.simg)
+-	Singularity container (current version: CNT_genomic_processing_v1.simg)
 -	Files with FID, IID, race, and sex for each set
   	- The race column should have non-Hispanic whites coded as "White" and none of the values can have spaces. Sex should be coded as 
 -	1000G files to use in calculating PCs (optional)
@@ -53,8 +53,8 @@ To run the part 1 script, run a singularity command similar to the one below, bi
 ```
 singularity exec --containall --bind /path/to/genotypes/:/inputs/ \
 	    --bind /path/to/1000G/data/:/inputs2/ \
-	    /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v2.1.simg \
-	    /bin/bash -c "cd $SCRIPTS_DIR ; sh gwas_qc_part1.sh \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg \
+	    /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_part1.sh \
 	    	      -i /inputs/COHORT_raw_genotypes \
 		      	 -o /inputs/COHORT_cleaned \
 			       -r /inputs/COHORT_race_sex.txt \
@@ -75,7 +75,7 @@ Once the part 1 script completes, view the resulting PC plots and make decisions
 We run the part 2 pre-imputation QC and every step following in samples of all races as well as in just non-Hispanic whites.
 
 Files needed for the Pre-Imputation QC Part 2 script:
--	Singularity container (current version: gwas_qc_singularity_v2.1.simg)
+-	Singularity container (current version: CNT_genomic_processing_v1.simg)
 -	Genotype files resulting from the part 1 script
 - Reference panel files
 
@@ -85,8 +85,8 @@ To run the part 2 script, run a command similar to the one below:
 singularity exec --containall \
   --bind /scratch/mahone1/GWAS_QC_data/BIOCARD_recap/:/inputs/ \
   --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-  /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v2.1.simg \
-  /bin/bash -c "cd $SCRIPTS_DIR ; sh gwas_qc_part2.sh \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg \
+  /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_part2.sh \
   -i /inputs/COHORT_genotyped_geno05_maf01_mind01_norelated_nomismatchedsex_keep_autosomes_NHW\
   -o /inputs/COHORT_NHW_genotyped_cleaned \
   -R /ref/topmed_imputed_ref_snps -n"
@@ -108,7 +108,7 @@ Alternatively, the imputation results can be unzipped before running the post-im
 ## Post-Imputation QC
 
 Files needed for the Pre-Imputation QC Part 2 script:
--	Singularity container (current version: gwas_qc_singularity_v2.1.simg)
+-	Singularity container (current version: CNT_genomic_processing_v1.simg)
 -	Imputation results and password to unzip them
 - File with race and sex for the dataset (used in the pre-imputation part 1 step)
 - Files to convert variant ids back to rs number 
@@ -117,8 +117,8 @@ To run the post-imputation QC, run a command similar to the one below.
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
   --bind /path/to/rsnumber/conversion/files/:/ref/ \
-  /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v2.1.simg \
-  /bin/bash -c  "cd $SCRIPTS_DIR ; sh gwas_qc_postimputation.sh -z \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg \
+  /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation.sh -z \
   -i /inputs/Imputed/Raw/ \
   -o /inputs/Imputed/Cleaned/COHORT_imputed_NHW \
   -r /inputs/COHORT_race_sex.txt \
@@ -134,7 +134,7 @@ After the post-imputation QC runs, check the principal components for outliers, 
 To recalculate PCs, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/gwas_qc_singularity_v1.3.simg \
-  /bin/bash -c  "cd $SCRIPTS_DIR ; sh calc_plot_PCs.sh \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg \
+  /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
