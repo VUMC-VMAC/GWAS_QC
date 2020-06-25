@@ -1,8 +1,9 @@
 args <- commandArgs(TRUE)
 pcs_file <- args[1]
-race_file <- args[2] #defines race file for main dataset; set to NA if plots should not be colored on race
-race_1000G_file <- args[3] #defines race file for 1000G; set to NA if 1000G were not included in these PCs
+race_file <- args[2] #defines race file for main dataset; set to "none" if plots should not be colored on race
+race_1000G_file <- args[3] #defines race file for 1000G; set to "none" if 1000G were not included in these PCs
 write_excl_file <- args[4] #defines whether or not to write out a file for default exclusion decisions
+dataset_label <- args[5] #defines label for the race categories in the current set; set to "none" if unspecified
 
 library(ggplot2)
 library(data.table)
@@ -28,7 +29,7 @@ if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   names(pcs)[names(pcs)== "IID"] <- "IID_hash"
   pcs <- merge(pcs, id_hash, by = c("FID_hash", "IID_hash"), all.x = T)
 
-  if(race_1000G_file != "NA"){
+  if(race_1000G_file != "none"){
     #replace the 1000G ids if that file is present
     pcs$FID[is.na(pcs$FID)] <- pcs$FID_hash[is.na(pcs$FID)]
     pcs$IID[is.na(pcs$IID)] <- pcs$IID_hash[is.na(pcs$IID)]
@@ -41,25 +42,30 @@ if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   print(paste("Hash list of FID/IIDs found! Please be sure to update your fam file with the correct IDs using", update_ids_filename, "before subsetting for race or moving to imputation!"))
 }
 
-if(race_file != "NA"){
+if(race_file != "none"){
 
 	#read in race
 	data <- fread(race_file, data.table = F, header = F)
 	names(data) <- c("FID", "IID", "race", "sex")
 	data$set <- "current"
 
-	if(race_1000G_file != "NA"){
+	if(race_1000G_file != "none"){
 		#read in race for 1000G
 		data_1000G <- fread(race_1000G_file, header = F)
 		names(data_1000G) <- c("FID", "IID", "race")
 		data_1000G$set <- "1000G"
+
+		#add 1000G to race values
+    		data_1000G$race <- paste("1000G", data_1000G$race, sep = " ")
+
+		#combine with the current dataset's race
 		data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])
 	
 		#merge race and PCs
 		data <- merge(pcs, data, by = c("FID", "IID"))
 
 		#get NHW subset
-		data_nhw <- data[data$race %in% c("EUR", "White"),]
+		data_nhw <- data[data$race %in% c("1000G EUR", "White"),]
 		
 		#set outlier thresholds based on NHW in 1000G and current dataset
 		PC1_thresh <- c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))
@@ -79,6 +85,14 @@ if(race_file != "NA"){
 		PC3_thresh <- c((mean(data$PC3)-5*sd(data$PC3)), (mean(data$PC3)+5*sd(data$PC3)))
 		PC4_thresh <- c((mean(data$PC4)-5*sd(data$PC4)), (mean(data$PC4)+5*sd(data$PC4)))
 	}
+
+	#regardless of whether 1000G data is present or not, 
+	#add dataset label to this dataset's race categories 
+	#if a label was supplied
+  	if(dataset_label != "none"){
+		data$race[data$set == "current"] <- paste(dataset_label, data$race[data$set == "current"], sep = " ")
+	} 
+
 } else {
 	#if there's no race, just use PCs
 	data <- pcs
@@ -92,23 +106,29 @@ if(race_file != "NA"){
 #create plots
 pdf(paste0(pc_file_stem, ".pdf"))
 
-if(race_1000G_file != "NA" & race_file != "NA"){
+if(race_1000G_file != "none" & race_file != "none"){
 
 	#color just to see if they cluster by 1000G race
-	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
+	a <- ggplot(data = data) + 
+	            geom_point(data = data[data$set == "1000G",], aes(x=PC1, y=PC2, color=race))  +
+	            geom_point(data = data[data$set == "current",], aes(x=PC1, y=PC2, color=race))  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
 	print(a)
-	b <- ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
+	b <- ggplot(data = data) + 
+	            geom_point(data = data[data$set == "1000G",], aes(x=PC2, y=PC3, color=race))  +
+	            geom_point(data = data[data$set == "current",], aes(x=PC2, y=PC3, color=race))  +
 	  geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
 	print(b)
-	c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
+	c <- ggplot(data = data) + 
+	            geom_point(data = data[data$set == "1000G",], aes(x=PC3, y=PC4, color=race))  +
+	            geom_point(data = data[data$set == "current",], aes(x=PC3, y=PC4, color=race))  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
 	print(c)
 
 	#remove 1000G samples for the rest of the plots
 	data <- data[data$set == "current",]
 }
-if(race_file != "NA"){
+if(race_file != "none"){
 	#regardless of whether 1000G data is here or not, if race for this dataset is present, plot it with everyone
 	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
@@ -121,7 +141,11 @@ if(race_file != "NA"){
 	print(c)
 
 	#plot in non-hispanic whites 
-	data <- data[data$race == "White",]
+	if(dataset_label != "none"){
+	  data <- data[data$race == paste(dataset_label, "White", sep = " "),]
+	} else {
+	  data <- data[data$race == "White",]
+	}
 	a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
 	print(a)
@@ -131,8 +155,7 @@ if(race_file != "NA"){
 	c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
 	  geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
 	print(c)
-}
-if(race_file == "NA"){
+} else {
 	#if no race information is available, plot everyone with lines based on whole sample
 	a <- ggplot(data = data, aes(x=PC1, y=PC2)) + geom_point()  +
 	  geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)

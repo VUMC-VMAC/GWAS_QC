@@ -9,7 +9,7 @@ display_usage() {
 
 Use this script to calculate and plot PCs with or without 1000G samples.
 
-Usage: SCRIPTNAME.sh -i [input_stem] -r [race_sex_file] -G [stem_1000G] -n
+Usage: SCRIPTNAME.sh -i [input_stem] -r [race_sex_file] -G [stem_1000G] -n -l [dataset_label]
 
 
 input_stem = the full path and file stem for the plink set for PC calculations '*[bed,bim,fam]'
@@ -17,6 +17,8 @@ input_stem = the full path and file stem for the plink set for PC calculations '
 race_sex_file (optional) = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
 
 stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
+
+dataset_label (optional) = a label to be added to the current dataset's race categories on PC plots
 
 -n (optional) = indicates to not create the exclusion file. Default is to create it
 
@@ -26,12 +28,13 @@ stem_1000G (optional) = the full path and stem to the 1000G genotype files in pl
 
 
 #parse arguments
-while getopts 'i:r:G:nh' flag; do
+while getopts 'i:r:G:nl:h' flag; do
   case "${flag}" in
     i) input_stem="${OPTARG}" ;;
     r) race_sex_file="${OPTARG}" ;;
     G) stem_1000G="${OPTARG}" ;;
     n) exclusion_file="no" ;;
+    l) dataset_label="${OPTARG}" ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -51,9 +54,21 @@ fi
 if [ -z "$race_sex_file" ];
 then
     printf "No file with race/ethnicity was specified so plots will not color on those groups.\n"
-    race_sex_file=NA
+    race_sex_file=none
+    #make sure that the dataset label variable is not set
+    dataset_label=none
 else
     printf "Race/ethnicity file : $race_sex_file\n"
+
+    #check for the dataset label only if the race/sex file was supplied
+    if [ -z "$dataset_label" ];
+    then
+	printf "No dataset label for race categories on PC plots specified.\n"
+	dataset_label=none
+    else
+	printf "Dataset label : $dataset_label\n"
+    fi
+
 fi
 ##1000G data
 if [ ! -z "$stem_1000G" ];
@@ -181,12 +196,12 @@ printf "smartpca complete! Plotting...\n\n"
 #plot
 if [ -z $stem_1000G ];
 then
-    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file NA $exclusion_file
+    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion, optional dataset label
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file none $exclusion_file $dataset_label
     printf "Plots of PCs are saved here: ${pcainput}_pruned_PCplots.pdf."
 else  
     #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file $dataset_label
     printf "Plots of PCs calculated with 1000G samples are saved here: ${pcainput}_pruned_PCplots.pdf."
 fi
 
