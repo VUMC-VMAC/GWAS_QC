@@ -1,36 +1,62 @@
 #!/bin/bash
 
-stem=$1
-input_fileset=$2
-ref_file_stem=$3
-exclude=$4
-
 #fail if error
 set -e
 
 #define usage
 display_usage() {
     printf "GWAS QC Part 2 script
+
 Picks up after decisions have been made regarding PC outlier removal. Input dataset can be either the non-Hispanic white subset or include all races present. This script will perform the Hardy-Weinberg filter and prepare the files for upload to the TopMed Imputation Server. Will create all files within the same folder as the current plink fileset.
 
 Usage:
-SCRIPTNAME.sh [stem] [input_fileset] [ref_file_stem] [exclude]
+SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -b [input genome build] -n
 
-stem = the prefix you want for the files right before imputation
+
+output_stem = the prefix you want for the files right before imputation
+
 input_fileset = the full path and file stem for the current plink fileset '*[bed,bim,fam]'
+
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
-exclude = optional argument set to noexclude to indicate not to exclude variants for not being in or not matching the reference panel
+
+-b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the liftOver step.
+
+-n = optional argument set to indicate not to exclude variants for not being in or not matching the reference panel; default is to exclude
+
+-h will show this usage
 "
-        }
-if [  $# -lt 3 ]
-        then
-                display_usage
-                exit 1
+}
+#set default to do the exclusion and build to b37
+noexclude='false'
+build='b37'
+#parse arguments
+while getopts 'o:i:R:b:nh' flag; do
+  case "${flag}" in
+    o) output_stem="${OPTARG}" ;;
+    i) input_fileset="${OPTARG}" ;;
+    R) ref_file_stem="${OPTARG}" ;;
+    b) build="${OPTARG}" ;;
+    n) noexclude='true' ;;
+    h) display_usage ; exit ;;
+    \?|*) display_usage
+       exit 1;;
+  esac
+done
+
+#validate arguments
+if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$ref_file_stem" ] ;
+then
+    printf "Error: Necessary arguments not present!\n\n"
+    display_usage
+    exit 1
 fi
+
+
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
 then
         printf "Currently in $PWD, but must be in a folder with the necessary scripts to run the GWAS QC! Please move to that folder and run this script again.
+
 Necessary scripts:
 get_related_ids.R
 check_id_length.R
@@ -42,88 +68,105 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 #print out inputs
-echo -e "GWAS QC Part 2 Script\n"
-echo "Input fileset : "$input_fileset
-echo "Reference panel SNP file : "$ref_file
-echo "Stem for pre-imputation files :"$stem
+printf "GWAS QC Part 2 Script
+
+Input fileset : $input_fileset 
+Reference panel SNP file : $ref_file_stem
+Stem for pre-imputation files :$output_stem
+"
 
 #get file path for input
 input_path=${input_fileset%/*}
-#add input path to the stem for the final files
-stem=${input_path}/${stem}
+output_path=${output_stem%/*}
 
 #### HWE filter ####
 
-echo -e "\nRunning the Hardy-Weinberg Equilibrium SNP filter \n"  
-output=$( echo ${input_fileset}_hwe6 )
+printf "\nStep 1: Running the Hardy-Weinberg Equilibrium SNP filter \n"  
+output=$( printf ${input_fileset}_hwe6 )
 plink --bfile $input_fileset --hwe 0.000001 --make-bed --out $output > /dev/null
 grep -e "--hwe:" -e ' people pass filters and QC' $output.log   
-echo -e " outfile: $output \n"
+printf " outfile: $output \n"
 
 #### liftOver ####
 
-echo -e "Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel"
-#create bed file to start the liftover
-awk '{ print "chr"$1" "$4 -1" "$4" "$2 }' ${output}.bim > ${output}_toliftover.txt
-#lift over
-./liftOver ${output}_toliftover.txt hg19ToHg38.over.chain.gz ${output}_lifted.txt ${output}_unlifted.txt
-#remove "chr" from chromosome column
-sed -i 's/^chr//g' ${output}_lifted.txt
+#check the build, decide whether to do the liftOver and, if so, which chain file to use
+if [ "$build" = "b37" ];
+then
+    printf "\nStep 2: Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel\n"
+    chain_file="hg19ToHg38.over.chain.gz"
+elif [ "$build" = "b36" ];
+then 
+    printf "\nStep 2: Lifting over the genotype file from build 36 to build 38 to match the TopMed reference panel\n"
+    chain_file="hg18ToHg38.over.chain.gz"
+elif [ "$build" = "b38" ];
+then
+    printf "\nStep 2: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
+fi
 
-#get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
-grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
-awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
-echo -e "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38)."
+#if the chain file variable is set, then run the liftOver
+if [ ! -z "$chain_file" ];
+then
+    #create bed file to start the liftover
+    awk '{ print "chr"$1" "$4 -1" "$4" "$2 }' ${output}.bim > ${output}_toliftover.txt
+    #lift over
+    ./liftOver ${output}_toliftover.txt $chain_file ${output}_lifted.txt ${output}_unlifted.txt
+    #remove "chr" from chromosome column
+    sed -i 's/^chr//g' ${output}_lifted.txt
 
-#drop 
-plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
-#update the chr and BP positions for remaining
-plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr > /dev/null
-plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted > /dev/null
-output=${output}_noprobSNPs_chr_bplifted
+    #get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
+    grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
+    awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
+    printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
+
+    #drop 
+    plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
+    #update the chr and BP positions for remaining
+    plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr > /dev/null
+    plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted > /dev/null
+    output=${output}_noprobSNPs_chr_bplifted
+fi
+
 
 #### Imputation prep ####
 
-echo -e "Comparing with the reference panel and preparing files for imputation for each chromosome"
+printf "\nStep 3: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #run imputation prep for each chromosome
-for i in {1..22} ;
+for i in $( seq 1 22 ) ;
 do
-    echo -e "Beginning chr ${i}..."
+    printf "Beginning chr ${i}...\n"
     #split out this chr
-    plink --bfile ${output} --allow-no-sex --chr $i --freq --make-bed --out ${stem}_chr$i > /dev/null
+    plink --bfile ${output} --allow-no-sex --chr $i --freq --make-bed --out ${output_stem}_chr$i > /dev/null
 
     #run the imputation checking script
-    perl HRC-1000G-check-bim-NoReadKey.pl -b ${stem}_chr$i.bim  -f ${stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
+    perl HRC-1000G-check-bim-NoReadKey.pl -b ${output_stem}_chr$i.bim  -f ${output_stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
 
     #if noexclude, then skip the exclusion step in the plink file
-    if [[ $exclude == "noexclude" ]];
+    if [ "$noexclude" = true ];
     then
-	sed -i -e '1s/.*/#&/' -e "s|${input_path}/TEMP1|${stem}_chr${i}|g" ${input_path}/Run-plink.sh
+	sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}_chr${i}|g" ${output_path}/Run-plink.sh
     fi
 
     #run created script with all the plink commands; breaks into files for each chr
-    sed -i "s|rm TEMP|rm ${input_path}/TEMP|" ${input_path}/Run-plink.sh
-    sh ${input_path}/Run-plink.sh > /dev/null
+    sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
+    sh ${output_path}/Run-plink.sh > /dev/null
 
-    #update chr code to have chr# rather than just #
-    bcftools annotate --rename-chrs update_chr_names_b38.txt ${stem}_chr${i}-updated-chr${i}.vcf -o ${stem}_chr${i}-updated-chr${i}_chrupdate.vcf -O v 
-    #create a sorted *.vcf.gz file using VCFtools and tabix
-    vcf-sort ${stem}_chr${i}-updated-chr${i}_chrupdate.vcf | bgzip -c > ${stem}_chr${i}-updated-chr${i}_chrupdate.vcf.gz;
-
-    echo -e "Chr ${i} complete..."
+    #update chr code to have chr# rather than just #, sort and output vcf
+    mkdir ${output_path}/tmp${i}/
+    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz
+    printf "\nChr ${i} complete...\n"
 done
 
 #print out number of variants actually excluded or which would have been excluded
-if [[ $exclude == "noexclude" ]];
+if [ "$noexclude" = true ];
 then 
-    echo -e "Would have removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+    printf "Would have removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
-    echo -e "Removed $( cat ${input_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
+    printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
 fi
 
 #remove the intermediate .vcf files
-rm ${input_path}/*.vcf
+rm ${output_path}/*.vcf
 
-echo -e "\nConversion complete! Upload the files (${stem}-updated-chr*_chrupdate.vcf.gz) to the imputation server.\n"
+printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 
