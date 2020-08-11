@@ -77,19 +77,21 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
 
-#check to make sure password file is present
-if [ ! -f "${imputation_results_folder}/pass.txt" ];
-then
-    printf "Imputation password file not found! Please save the password to unzip imputation results (found in the email notification from the imputation server of the job's completion) to ${imputation_results_folder}/pass.txt\n"
-    exit 1
-fi
 
 ################# Start the post-imputation QC ######################
 
 if [ "$do_unzip" = 'true' ];
 then
-    #unzip imputation results using password
     printf "Step 1 : Unzipping imputation results\n\n"
+
+    #check to make sure password file is present
+    if [ ! -f "${imputation_results_folder}/pass.txt" ];
+    then
+	printf "Imputation password file not found! Please save the password to unzip imputation results (found in the email notification from the imputation server of the job's completion) to ${imputation_results_folder}/pass.txt\n"
+	exit 1
+    fi
+
+    #unzip imputation results using password
     for i in $( ls ${imputation_results_folder}/*.zip );
     do
 	unzip -P $( cat ${imputation_results_folder}/pass.txt ) $i -d $imputation_results_folder
