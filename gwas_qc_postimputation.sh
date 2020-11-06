@@ -10,7 +10,7 @@ display_usage() {
 This script will unzip the imputation results (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -z
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -z
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -20,6 +20,8 @@ race_sex_file = a file with FID and IID (corresponding to the fam file), 1 colum
 
 snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
+preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
+
 -z indicates that the imputation results will need to be unzipped.
 
 -h will display this message
@@ -28,13 +30,14 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 
 #parse options
 do_unzip='false'
-while getopts 'o:i:r:s:zh' flag; do
+while getopts 'o:i:r:s:g:zh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
     r) race_sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;
     z) do_unzip='true' ;;
+    g) preimputation_geno="${OPTARG}" ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -42,7 +45,7 @@ while getopts 'o:i:r:s:zh' flag; do
 done
 
 #check to make sure necessary arguments are present                                                                                                    
-if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$race_sex_file" ] || [ -z "$snp_names_file" ] ;
+if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$race_sex_file" ] || [ -z "$snp_names_file" ] || [ -z "$preimputation_geno" ];
 then
     printf "Error: Necessary arguments not present!\n\n"
     display_usage
@@ -62,6 +65,20 @@ then
     printf "The -z was not specified so imputation results must already be unzipped.\n\n"
 fi
 
+#validate the genotyped files
+if [ -z "$( head ${preimputation_geno}.fam )" ];
+then
+    printf "Cannot see the preimputation genotype files ($preimputation_geno)! Please check the argument supplied to -g and try again!\n"
+    exit 1
+fi
+
+#validate the race/sex file
+if [ ! -f "$race_sex_file" ]; 
+then
+    printf "The race/sex file supplied ($race_sex_file) does not exist! Please try again, specifying the correct input file.\n"
+    exit 1
+fi
+
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
 then
@@ -76,6 +93,9 @@ check_ambig_snps.R
 HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
+
+#get the output folder
+${output_folder}=${output_stem%/*}
 
 
 ################# Start the post-imputation QC ######################
@@ -143,7 +163,6 @@ plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev
 grep 'pass filters and QC' ${output}.log
 
 #update SNP names, sex, and perform standard SNP filtering
-printf "Step 4 : Updating sex in the fam file and applying standard variant filters\n\n"
 #update person ids using the race and sex file
 output_last=$output
 output=${output}_IDs
@@ -156,11 +175,51 @@ output=${output}_sex
 plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --make-bed --out ${output} > /dev/null
 grep -e "people updated" ${output}.log
 
+
+###### merge back in genotypes #####
+printf "\nStep 4: Merging back in the original genotypes.\n"
+# make file with all the genotyped variant ids -- this will be problematic if we don't have separate folders for NHW/all-races
+awk '{ print $1 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_variants.txt
+
+# remove variants for which there are genotypes from the bim file
+output_last=$output
+output=${output}_nogeno
+plink --bfile ${output_last} --exclude ${output_folder}/genotyped_variants.txt --make-bed --out $output > /dev/null
+grep -e "variants remaining" ${output}.log
+
+# merge the genotyped and imputed data
+#output_last=$output
+#output=${output}_merged
+plink --bfile ${output} --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
+
+#check for warnings -- probably same position ones
+sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
+if [ ! -z "$sameposwarnings" ] ;
+then 
+    printf "\nGetting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
+    grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
+    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
+    plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
+    
+    #check for more warnings
+    if [ ! -z "$sameposwarnings" ] ;
+    then
+	printf "\nGetting more same position warnings! Please"
+else
+    output=${output}_merged
+fi
+
+
+
+
+printf "Step 5: Applying standard variant filters\n"
+
 # SNP filters
 output_last=$output
 output=${output}_maf01_hwe6
 plink --bfile ${output_last} --maf 0.01 --hwe 0.000001 --make-bed --out ${output} > /dev/null
 grep -e "hwe: " -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
+
 
 # prune for heterozygosity check
 printf "\n\nStep 5 : Pruning and running heterozygosity check\n"
