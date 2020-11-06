@@ -87,6 +87,20 @@ plink --bfile $input_fileset --hwe 0.000001 --make-bed --out $output > /dev/null
 grep -e "--hwe:" -e ' people pass filters and QC' $output.log   
 printf " outfile: $output \n"
 
+#### remove palindromic ####
+
+printf "\nStep 2: Removing palindromic variants \n"
+
+#get palindromic variants
+awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${output}.bim > ${output}_palindromic_snps.txt
+
+#remove them
+output_last=$output
+output=${output}_nopal
+plink --bfile $output_last --exclude ${output}_palindromic_snps.txt --make-bed --out $output > /dev/null
+grep ' people pass filters and QC' ${output}.log
+printf " outfile: $output \n"
+
 #### liftOver ####
 
 #check the build, decide whether to do the liftOver and, if so, which chain file to use
