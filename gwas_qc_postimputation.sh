@@ -23,14 +23,14 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
 
 -z indicates that the imputation results will need to be unzipped.
-
+-x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
 -h will display this message
 "
         }
 
 #parse options
 do_unzip='false'
-while getopts 'o:i:r:s:g:zh' flag; do
+while getopts 'o:i:r:s:g:zxh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
@@ -38,6 +38,7 @@ while getopts 'o:i:r:s:g:zh' flag; do
     s) snp_names_file="${OPTARG}" ;;
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
+    x) skip_first_filters=true ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -127,40 +128,45 @@ else
     fi
 fi
 
-#filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
-printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
-for i in $(seq 1 22); do
-    #restrict to variants with R2>=0.80
-    plink2 --vcf ${imputation_results_folder}/chr${i}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --make-bed --out ${output_stem}_chr${i}_temp > /dev/null
+if [ $skip_first_filters != true ];
+then
+    #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
+    printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
+    for i in $(seq 1 22); do
+	#restrict to variants with R2>=0.80
+	plink2 --vcf ${imputation_results_folder}/chr${i}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --make-bed --out ${output_stem}_chr${i}_temp > /dev/null
+	
+	#get list of variants which have the same position (by base pair since this is just 1 chromosome) and remove
+	dup_pos=$( awk '{ print $4 }' ${output_stem}_chr${i}_temp.bim | uniq -d )
+	for j in $dup_pos ; do grep -w $j ${output_stem}_chr${i}_temp.bim | awk '{ print $2 }' >> ${output_stem}_chr${i}.dups ; done
+	plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${i}.dups --make-bed --out ${output_stem}_chr${i}_temp_nodups > /dev/null
+	
+	#update variant names with rs numbers
+	plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names > /dev/null
+    done
 
-    #get list of variants which have the same position (by base pair since this is just 1 chromosome) and remove
-    dup_pos=$( awk '{ print $4 }' ${output_stem}_chr${i}_temp.bim | uniq -d )
-    for j in $dup_pos ; do grep -w $j ${output_stem}_chr${i}_temp.bim | awk '{ print $2 }' >> ${output_stem}_chr${i}.dups ; done
-    plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${i}.dups --make-bed --out ${output_stem}_chr${i}_temp_nodups > /dev/null
+    #print out numbers of variants
+    total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
+    afterR2=$(( $( cat ${output_stem}_chr*_temp.bim | wc -l ) - $total_var ))
+    nomulti=$(( $( cat ${output_stem}_chr*_temp_nodups.bim | wc -l ) - $total_var - $afterR2 ))
+    printf "$total_var variants after imputation, $afterR2 variants removed for R2<0.8, and $nomulti duplicated variants removed.\n\n"
 
-    #update variant names with rs numbers
-    plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names > /dev/null
-done
-
-#print out numbers of variants
-total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-afterR2=$( cat ${output_stem}_chr*_temp.bim | wc -l )
-nomulti=$( cat ${output_stem}_chr*_temp_nodups.bim | wc -l )
-printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
-
-#Merge all chromosomes into one file
-printf "Step 3 : Merging all chromosomes into one file\n"
-#create merge file (emptying old version if present)
-echo "" | tee ${output_stem}_merge_list.txt
-for i in $( seq 1 22 );
-do
-    printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
-done
-
-#merge individual chromosome files to be one large file
-output=${output_stem}
-plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev/null
-grep 'pass filters and QC' ${output}.log
+    #Merge all chromosomes into one file
+    printf "Step 3 : Merging all chromosomes into one file\n"
+    #create merge file (emptying old version if present)
+    echo "" | tee ${output_stem}_merge_list.txt
+    for i in $( seq 1 22 );
+    do
+	printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
+    done
+    
+    #merge individual chromosome files to be one large file
+    output=${output_stem}
+    plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev/null
+    grep 'pass filters and QC' ${output}.log
+else
+    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file.\n"
+fi
 
 #### Updating person ids and sex ####
 #update person ids using the race and sex file
