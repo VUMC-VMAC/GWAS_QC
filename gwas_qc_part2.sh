@@ -140,10 +140,18 @@ then
     output=${output}_noprobSNPs_chr_bplifted
 fi
 
+#### remove same-position variants ####
+
+printf "\nStep 3: Removing multi-allelic and duplicated variants.\n"
+awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort  -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
+printf "Removing $( wc -l < ${output}_samepos_vars.txt ) same-position variants.\n"
+plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
+output=${output}_nosamepos
+
 
 #### Imputation prep ####
 
-printf "\nStep 3: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
+printf "\nStep 4: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #run imputation prep for each chromosome
 for i in $( seq 1 22 ) ;
@@ -161,13 +169,14 @@ do
 	sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}_chr${i}|g" ${output_path}/Run-plink.sh
     fi
 
-    #run created script with all the plink commands; breaks into files for each chr
+    #run created script with all the plink commands
+    # muting all output since this will throw quite a few warnings if there are any funky alleles
     sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
-    sh ${output_path}/Run-plink.sh > /dev/null
+    sh ${output_path}/Run-plink.sh > /dev/null 2>&1
 
     #update chr code to have chr# rather than just #, sort and output vcf
     mkdir ${output_path}/tmp${i}/
-    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz
+    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz > /dev/null
     printf "\nChr ${i} complete...\n"
 done
 

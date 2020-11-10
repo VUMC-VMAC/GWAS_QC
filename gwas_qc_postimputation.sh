@@ -66,7 +66,7 @@ then
 fi
 
 #validate the genotyped files
-if [ -z "$( head ${preimputation_geno}.fam )" ];
+if [ ! -f "${preimputation_geno}.fam" ];
 then
     printf "Cannot see the preimputation genotype files ($preimputation_geno)! Please check the argument supplied to -g and try again!\n"
     exit 1
@@ -162,22 +162,24 @@ output=${output_stem}
 plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev/null
 grep 'pass filters and QC' ${output}.log
 
-#update SNP names, sex, and perform standard SNP filtering
+#### Updating person ids and sex ####
 #update person ids using the race and sex file
 output_last=$output
 output=${output}_IDs
 awk '{ print "0 "$1"_"$2" "$1" "$2 }' $race_sex_file > ${output_last}_update_ids.txt
 plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --make-bed --out $output > /dev/null
+tmp=$( grep "people updated" ${output}.log | awk '{ print $2 }' )
+printf "$tmp people whose ids were able to be updated using the race/sex file.\n"
 
 #update SNP names and add sex back into fam file
 output_last=$output
 output=${output}_sex
 plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --make-bed --out ${output} > /dev/null
-grep -e "people updated" ${output}.log
-
 
 ###### merge back in genotypes #####
+
 printf "\nStep 4: Merging back in the original genotypes.\n"
+
 # make file with all the genotyped variant ids -- this will be problematic if we don't have separate folders for NHW/all-races
 awk '{ print $1 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_variants.txt
 
@@ -185,34 +187,41 @@ awk '{ print $1 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_varian
 output_last=$output
 output=${output}_nogeno
 plink --bfile ${output_last} --exclude ${output_folder}/genotyped_variants.txt --make-bed --out $output > /dev/null
-grep -e "variants remaining" ${output}.log
+printf "$(grep -e "variants remaining" ${output}.log) after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
-#output_last=$output
-#output=${output}_merged
 plink --bfile ${output} --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
 
-#check for warnings -- probably same position ones
+#check for complete sample overlap in the log and throw an error if there is not complete overlap
+new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
+if [ "$new_samples" != 0 ];
+then 
+    printf "There is incomplete overlap between the genotype and imputed fam files! Please ensure you input the correct genotypes and resolve any issues. (Hint: Check how many people whose ids were updated above and compare with the total. If fewer, then supply a race/sex file with all samples in the imputed files.)\n"
+    exit 1
+fi
+
+#check for same position warnings
 sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
 if [ ! -z "$sameposwarnings" ] ;
 then 
-    printf "\nGetting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
+    printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
+    printf "$(grep -e "variants remaining" ${output}.log) after removing genotyped variants from imputation results based on position.\n"
     plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
     
     #check for more warnings
+    sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
     if [ ! -z "$sameposwarnings" ] ;
     then
-	printf "\nGetting more same position warnings! Please"
-else
-    output=${output}_merged
+	printf "\nGetting more same position warnings! Please check and handle manually!\n"
+    fi
 fi
+#update output variable
+output=${output}_merged
 
 
-
-
-printf "Step 5: Applying standard variant filters\n"
+printf "\nStep 5: Applying standard variant filters\n"
 
 # SNP filters
 output_last=$output
@@ -222,7 +231,7 @@ grep -e "hwe: " -e "removed due to minor allele threshold" -e 'pass filters and 
 
 
 # prune for heterozygosity check
-printf "\n\nStep 5 : Pruning and running heterozygosity check\n"
+printf "\n\nStep 6: Pruning and running heterozygosity check\n"
 plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
 plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
 rm ${output}_prune.*
@@ -244,7 +253,7 @@ then
 fi
 
 ##### PC calculation ####
-printf "\nStep 5: Calculating post-imputation PCs\n\n"
+printf "\nStep 7: Calculating post-imputation PCs\n\n"
 
 # Calculate PCs
 sh calc_plot_PCs.sh -i $output -r $race_sex_file

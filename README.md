@@ -138,3 +138,5 @@ singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
   /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
+
+If you get an error because there is incomplete overlap between the genotyped and imputed files, it is likely there was some issue with converting the imputed ids back to FID and IID. To resolve this issue, ensure that the supplied race/sex file has every sample in the imputed files. 
