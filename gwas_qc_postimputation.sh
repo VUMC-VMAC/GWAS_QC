@@ -96,7 +96,7 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 #get the output folder
-${output_folder}=${output_stem%/*}
+output_folder=${output_stem%/*}
 
 
 ################# Start the post-imputation QC ######################
@@ -165,7 +165,8 @@ then
     plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev/null
     grep 'pass filters and QC' ${output}.log
 else
-    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file.\n"
+    output=$output_stem
+    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
 fi
 
 #### Updating person ids and sex ####
@@ -187,13 +188,13 @@ plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --make-bed --out ${
 printf "\nStep 4: Merging back in the original genotypes.\n"
 
 # make file with all the genotyped variant ids -- this will be problematic if we don't have separate folders for NHW/all-races
-awk '{ print $1 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_variants.txt
+awk '{ print $2 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_variants.txt
 
 # remove variants for which there are genotypes from the bim file
 output_last=$output
 output=${output}_nogeno
 plink --bfile ${output_last} --exclude ${output_folder}/genotyped_variants.txt --make-bed --out $output > /dev/null
-printf "$(grep -e "variants remaining" ${output}.log) after removing genotyped variants from imputation results.\n"
+printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
 plink --bfile ${output} --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
@@ -213,7 +214,7 @@ then
     printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
-    printf "$(grep -e "variants remaining" ${output}.log) after removing genotyped variants from imputation results based on position.\n"
+    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
     plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
     
     #check for more warnings
