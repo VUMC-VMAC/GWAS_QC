@@ -188,8 +188,9 @@ else
     printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
 fi
 
-#remove the intermediate .vcf files
+#remove the intermediate .vcf and .bed files
 rm ${output_path}/*.vcf
+rm ${output_path}/*.bed
 
 printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 

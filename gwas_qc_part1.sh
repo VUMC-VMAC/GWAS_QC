@@ -208,6 +208,7 @@ then
     printf "Output file: $output \n\n"
 fi
 
+
 ##### Calculate PCs within this dataset #####
 
 printf "\nStep 8: Running PC calculation with smartpca\n"
@@ -224,5 +225,10 @@ else
     printf "\nStep 9: Running PC calculation including 1000G samples with smartpca\n"
     sh calc_plot_PCs.sh -i $output -r $race_sex_file -G $stem_1000G 
 fi
+
+# get rid of all the bim files except the last one
+printf "PC plots complete. Doing some clean-up...\n"
+files_to_delete=$( find ${output_folder}/*.bed | grep -v "${output}.bed" )
+rm $files_to_delete
 
 printf "Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"

@@ -265,5 +265,11 @@ printf "\nStep 7: Calculating post-imputation PCs\n\n"
 # Calculate PCs
 sh calc_plot_PCs.sh -i $output -r $race_sex_file
 
+#do some clean-up
+printf "PC calculation complete. Doing some cleanup...\n"
+files_to_remove=$( find ${output_folder}/*.bed | grep -v "${output}.bed" )
+rm $files_to_remove
+
 printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
+
 
