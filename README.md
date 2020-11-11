@@ -46,7 +46,7 @@ Supplementary files not included in this github:
 
 Files needed for the Pre-Imputation QC Part 1 script:
 - Raw genotype files
-- Singularity container (current version: CNT_genomic_processing_v1.simg)
+- Singularity container (current version: CNT_genomic_processing_v2.simg)
 - Files with FID, IID, race, and sex for each set
   - The race column should have non-Hispanic whites coded as "White" and none of the values can have spaces. Sex should be coded as 1=male, 2=female, 0=unknown.
 - 1000G files to use in calculating PCs (optional)
@@ -55,7 +55,7 @@ Files needed for the Pre-Imputation QC Part 1 script:
 To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. This script will take between 40 minutes to an hour to run, depending on the size of your dataset. As in the example below, -i specifies the input genotypes stem, -o specifies the output stem, -r specifies the race/sex file, and -G specifies the 1000G data.
 ```
 singularity exec --containall --bind /nfs:/nfs --bind  /data/h_vmac/GWAS_QC/:/ref/ --bind  /scratch/:/scratch/   \ 
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v2.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 	    sh gwas_qc_part1.sh -i   /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Raw/A4_ids_sex \
 	    -o   /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part1/A4_genotyped \
 	    -r   /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
@@ -85,7 +85,7 @@ To run the part 2 script, run a command similar to the one below:
 ```
 singularity exec --containall \
 	    --bind /nfs:/nfs --bind  /data/h_vmac/GWAS_QC/:/ref/ --bind  /scratch/:/scratch/  \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg /bin/bash -c   "cd /nfs/mahone1/GWAS_QC/ ;\
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v2.simg /bin/bash -c   "cd /nfs/mahone1/GWAS_QC/ ;\
 	    sh gwas_qc_part2.sh -i /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part1/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes \
 	    -o /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_NHW_AllRaces_genotyped_cleaned \
 	    -R /ref/topmed/topmed_imputed_ref_snps |& tee  /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_gwas_qc_part2_allraces.log"
@@ -117,7 +117,7 @@ Files needed for the Pre-Imputation QC Part 2 script:
 To run the post-imputation QC, run a command similar to the one below.
 ```
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg /bin/bash -c  "cd /scratch/mahone1/GWAS_QC/ ; \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v2.simg /bin/bash -c  "cd /scratch/mahone1/GWAS_QC/ ; \
 	    sh gwas_qc_postimputation.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
 	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
 	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
@@ -135,7 +135,7 @@ After the post-imputation QC runs, check the principal components for outliers, 
 To recalculate PCs, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v1.simg \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v2.simg \
   /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
