@@ -148,11 +148,17 @@ fi
 
 printf "\nStep 4: Removing multi-allelic and duplicated variants.\n"
 awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort  -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
-printf "Removing $( wc -l < ${output}_samepos_vars.txt ) same-position variants.\n"
-plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
-output=${output}_nosamepos
-grep ' people pass filters and QC' $output.log
-printf "Output file: $output\n"
+
+if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
+then
+    printf "Removing $( wc -l < ${output}_samepos_vars.txt ) same-position variants.\n"
+    plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
+    output=${output}_nosamepos
+    grep ' people pass filters and QC' $output.log
+    printf "Output file: $output\n"
+else 
+    printf "No multi-allelic or duplicated variants to remove.\n"
+fi
 
 #### Imputation prep ####
 
