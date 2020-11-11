@@ -226,7 +226,8 @@ then
 fi
 #update output variable
 output=${output}_merged
-
+printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
+printf "Output file: $output"
 
 printf "\nStep 5: Applying standard variant filters\n"
 
@@ -235,7 +236,7 @@ output_last=$output
 output=${output}_maf01_hwe6
 plink --bfile ${output_last} --maf 0.01 --hwe 0.000001 --make-bed --out ${output} > /dev/null
 grep -e "hwe: " -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
-
+printf "Output file: $output"
 
 # prune for heterozygosity check
 printf "\n\nStep 6: Pruning and running heterozygosity check\n"
