@@ -79,42 +79,46 @@ Stem for pre-imputation files :$output_stem
 input_path=${input_fileset%/*}
 output_path=${output_stem%/*}
 
+#get input file name to be the stem for the output
+input_stem=${input_fileset##*/}
+
 #### HWE filter ####
 
 printf "\nStep 1: Running the Hardy-Weinberg Equilibrium SNP filter \n"  
-output=$( printf ${input_fileset}_hwe6 )
+output=$( printf ${output_path}/${input_stem}_hwe6 )
 plink --bfile $input_fileset --hwe 0.000001 --make-bed --out $output > /dev/null
 grep -e "--hwe:" -e ' people pass filters and QC' $output.log   
-printf " outfile: $output \n"
+printf "Output file: $output \n"
 
 #### remove palindromic ####
 
 printf "\nStep 2: Removing palindromic variants \n"
 
 #get palindromic variants
-awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${output}.bim > ${output}_palindromic_snps.txt
+awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${output}.bim > ${output_path}/palindromic_snps.txt
 
 #remove them
 output_last=$output
 output=${output}_nopal
-plink --bfile $output_last --exclude ${output}_palindromic_snps.txt --make-bed --out $output > /dev/null
+plink --bfile $output_last --exclude ${output_path}/palindromic_snps.txt --make-bed --out $output > /dev/null
+printf "Removed $( wc -l < ${output_path}/palindromic_snps.txt ) palindromic variants.\n"
 grep ' people pass filters and QC' ${output}.log
-printf " outfile: $output \n"
+printf "Output file: $output \n"
 
 #### liftOver ####
 
 #check the build, decide whether to do the liftOver and, if so, which chain file to use
 if [ "$build" = "b37" ];
 then
-    printf "\nStep 2: Lifting over the genotype file from build 37 to build 38 to match the TopMed reference panel\n"
+    printf "\nStep 3: Lifting over the genotype file from build 37 to build 38 to match the TOPMed reference panel\n"
     chain_file="hg19ToHg38.over.chain.gz"
 elif [ "$build" = "b36" ];
 then 
-    printf "\nStep 2: Lifting over the genotype file from build 36 to build 38 to match the TopMed reference panel\n"
+    printf "\nStep 2: Lifting over the genotype file from build 36 to build 38 to match the TOPMed reference panel\n"
     chain_file="hg18ToHg38.over.chain.gz"
 elif [ "$build" = "b38" ];
 then
-    printf "\nStep 2: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
+    printf "\nStep 3: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
 fi
 
 #if the chain file variable is set, then run the liftOver
@@ -142,16 +146,17 @@ fi
 
 #### remove same-position variants ####
 
-printf "\nStep 3: Removing multi-allelic and duplicated variants.\n"
+printf "\nStep 4: Removing multi-allelic and duplicated variants.\n"
 awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort  -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 printf "Removing $( wc -l < ${output}_samepos_vars.txt ) same-position variants.\n"
 plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
 output=${output}_nosamepos
-
+grep ' people pass filters and QC' $output.log
+printf "Output file: $output\n"
 
 #### Imputation prep ####
 
-printf "\nStep 4: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
+printf "\nStep 5: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #run imputation prep for each chromosome
 for i in $( seq 1 22 ) ;
@@ -161,7 +166,7 @@ do
     plink --bfile ${output} --allow-no-sex --chr $i --freq --make-bed --out ${output_stem}_chr$i > /dev/null
 
     #run the imputation checking script
-    perl HRC-1000G-check-bim-NoReadKey.pl -b ${output_stem}_chr$i.bim  -f ${output_stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
+    perl HRC-1000G-check-bim.pl -b ${output_stem}_chr$i.bim  -f ${output_stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
 
     #if noexclude, then skip the exclusion step in the plink file
     if [ "$noexclude" = true ];

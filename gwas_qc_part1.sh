@@ -80,6 +80,9 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
 
+#get output folder
+output_folder=${output_stem%/*}
+
 
 ##### initial SNP filters #####
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"

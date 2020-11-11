@@ -10,7 +10,7 @@ display_usage() {
 This script will unzip the imputation results (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -z
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -z -x 
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -45,7 +45,7 @@ while getopts 'o:i:r:s:g:zxh' flag; do
   esac
 done
 
-#check to make sure necessary arguments are present                                                                                                    
+#check to make sure necessary arguments are present                                                                                              
 if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$race_sex_file" ] || [ -z "$snp_names_file" ] || [ -z "$preimputation_geno" ];
 then
     printf "Error: Necessary arguments not present!\n\n"
