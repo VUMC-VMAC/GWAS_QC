@@ -194,9 +194,9 @@ done
 #print out number of variants actually excluded or which would have been excluded
 if [ "$noexclude" = true ];
 then 
-    printf "Would have removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+    printf "Would have removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
-    printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}_chr*-updated-chr*.bim | wc -l ) for imputation.\n"
+    printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output_stem}*-updated-chr*.bim | wc -l ) for imputation.\n"
 fi
 
 #remove the intermediate .vcf and .bed files
@@ -204,5 +204,5 @@ rm ${output_path}/*.vcf
 files_to_remove=$( find ${output_path}/*.bed | grep -v "${output}.bed" )
 rm $files_to_remove
 
-printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
+printf "\nConversion complete! Upload the files (${output_stem}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 
