@@ -201,7 +201,8 @@ fi
 
 #remove the intermediate .vcf and .bed files
 rm ${output_path}/*.vcf
-rm ${output_path}/*.bed
+files_to_remove=$( find ${output_path}/*.bed | grep -v "${output}.bed" )
+rm $files_to_remove
 
 printf "\nConversion complete! Upload the files (${output_stem}_chr${i}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 
