@@ -164,30 +164,30 @@ fi
 
 printf "\nStep 5: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
+#make set with short name and freq file
+plink --bfile ${output} --freq --make-bed --out ${output_stem} > /dev/null
+
+#run the imputation checking script
+perl HRC-1000G-check-bim.pl -b ${output_stem}.bim  -f ${output_stem}.frq -r ${ref_file_stem}.txt.gz -h -n > /dev/null
+
+#if noexclude, then skip the exclusion step in the plink file
+if [ "$noexclude" = true ];
+then
+    sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}|g" ${output_path}/Run-plink.sh
+fi
+
+#run created script with all the plink commands
+# muting all output since this will throw quite a few warnings if there are any funky alleles
+sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
+sh ${output_path}/Run-plink.sh > /dev/null 2>&1
+
 #run imputation prep for each chromosome
 for i in $( seq 1 22 ) ;
 do
     printf "Beginning chr ${i}...\n"
-    #split out this chr
-    plink --bfile ${output} --allow-no-sex --chr $i --freq --make-bed --out ${output_stem}_chr$i > /dev/null
-
-    #run the imputation checking script
-    perl HRC-1000G-check-bim.pl -b ${output_stem}_chr$i.bim  -f ${output_stem}_chr$i.frq -r ${ref_file_stem}_chr${i}.txt.gz -h -n -c > /dev/null
-
-    #if noexclude, then skip the exclusion step in the plink file
-    if [ "$noexclude" = true ];
-    then
-	sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}_chr${i}|g" ${output_path}/Run-plink.sh
-    fi
-
-    #run created script with all the plink commands
-    # muting all output since this will throw quite a few warnings if there are any funky alleles
-    sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
-    sh ${output_path}/Run-plink.sh > /dev/null 2>&1
-
     #update chr code to have chr# rather than just #, sort and output vcf
     mkdir ${output_path}/tmp${i}/
-    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}_chr${i}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}_chr${i}-updated-chr${i}.vcf.gz > /dev/null
+    bcftools annotate --rename-chrs update_chr_names_b38.txt  ${output_stem}-updated-chr${i}.vcf | bcftools sort --temp-dir  ${output_path}/tmp${i}/ -O z -o ${output_stem}-updated-chr${i}.vcf.gz > /dev/null
     printf "\nChr ${i} complete...\n"
 done
 
