@@ -87,9 +87,8 @@ singularity exec --containall \
 	    --bind /nfs:/nfs --bind  /data/h_vmac/GWAS_QC/:/ref/ --bind  /scratch/:/scratch/  \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v2.simg /bin/bash -c   "cd /scripts/GWAS_QC/ ;\
 	    sh gwas_qc_part2.sh -i /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part1/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes \
-	    -o /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_NHW_AllRaces_genotyped_cleaned \
+	    -o /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_AllRaces_genotyped_cleaned \
 	    -R /ref/topmed/topmed_imputed_ref_snps |& tee  /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_gwas_qc_part2_allraces.log"
-
 ```
 The -n flag would specify to not exclude variants based on the reference panel. The -b flag can be used to specify genome build (b36, b37, b38); the default is b37.
 
