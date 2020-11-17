@@ -147,7 +147,7 @@ fi
 #### remove same-position variants ####
 
 printf "\nStep 4: Removing multi-allelic and duplicated variants.\n"
-awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T /ref/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
+awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_path}/tmp/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 
 if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
 then
