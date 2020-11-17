@@ -30,6 +30,7 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 
 #parse options
 do_unzip='false'
+skip_first_filters='false'
 while getopts 'o:i:r:s:g:zxh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
@@ -38,7 +39,7 @@ while getopts 'o:i:r:s:g:zxh' flag; do
     s) snp_names_file="${OPTARG}" ;;
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
-    x) skip_first_filters=true ;;
+    x) skip_first_filters='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -128,7 +129,7 @@ else
     fi
 fi
 
-if [ $skip_first_filters != true ];
+if [ $skip_first_filters = 'false' ];
 then
     #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
     printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
