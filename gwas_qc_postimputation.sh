@@ -10,7 +10,7 @@ display_usage() {
 This script will unzip the imputation results (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -z -x 
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -z -x -c
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -24,6 +24,7 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 
 -z indicates that the imputation results will need to be unzipped.
 -x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
+-c will skip the clean-up at the end of the script which removes intermediate *.bed files.
 -h will display this message
 "
         }
@@ -31,7 +32,8 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 #parse options
 do_unzip='false'
 skip_first_filters='false'
-while getopts 'o:i:r:s:g:zxh' flag; do
+skip_cleanup='false'
+while getopts 'o:i:r:s:g:zxch' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
@@ -40,6 +42,7 @@ while getopts 'o:i:r:s:g:zxh' flag; do
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
     x) skip_first_filters='true' ;;
+    c) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -267,10 +270,16 @@ printf "\nStep 7: Calculating post-imputation PCs\n\n"
 # Calculate PCs
 sh calc_plot_PCs.sh -i $output -r $race_sex_file
 
-#do some clean-up
-printf "PC calculation complete. Doing some cleanup...\n"
-files_to_remove=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
-rm $files_to_remove
+if [ "$skip_cleanup" = 'true' ];
+then 
+    #do some clean-up
+    printf "PC calculation complete. Doing some cleanup...\n"
+    files_to_remove=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
+    rm $files_to_remove
+else
+    #tell the user to do the cleanup
+    printf "PC calculation complete. The -c flag was specified to skip clean-up. Please remove any unnecessary *.bed files once complete to conserve space!\n"
+fi
 
 printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
 
