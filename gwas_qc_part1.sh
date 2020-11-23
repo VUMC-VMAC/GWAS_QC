@@ -230,8 +230,9 @@ else
 fi
 
 # get rid of all the bim files except the last one
+## make sure that it's only removing files from this set in case others are being run in the same folder
 printf "PC plots complete. Doing some clean-up...\n"
-files_to_delete=$( find ${output_folder}/*.bed | grep -v "${output}.bed" )
+files_to_delete=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
 rm $files_to_delete
 
 printf "Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
