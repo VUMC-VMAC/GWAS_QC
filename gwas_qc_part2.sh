@@ -200,8 +200,9 @@ else
 fi
 
 #remove the intermediate .vcf and .bed files
+##make sure that it only removes the files from running this script, not the initial files or files for other datsets
 rm ${output_path}/*.vcf
-files_to_remove=$( find ${output_path}/*.bed | grep -v "${output}.bed" )
+files_to_remove=$( find ${output_path}/${input_stem}_hwe6*.bed | grep -v "${output}.bed" )
 rm $files_to_remove
 
 printf "\nConversion complete! Upload the files (${output_stem}-updated-chr${i}.vcf.gz) to the imputation server.\n"

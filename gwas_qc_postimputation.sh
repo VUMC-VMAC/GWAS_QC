@@ -148,8 +148,8 @@ then
 
     #print out numbers of variants
     total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-    afterR2=$(( $( cat ${output_stem}_chr*_temp.bim | wc -l ) - $total_var ))
-    nomulti=$(( $( cat ${output_stem}_chr*_temp_nodups.bim | wc -l ) - $total_var - $afterR2 ))
+    afterR2=$(( $total_var - $( cat ${output_stem}_chr*_temp.bim | wc -l ) ))
+    nomulti=$(( $total_var - $afterR2 - $( cat ${output_stem}_chr*_temp_nodups.bim | wc -l ) ))
     printf "$total_var variants after imputation, $afterR2 variants removed for R2<0.8, and $nomulti duplicated variants removed.\n\n"
 
     #Merge all chromosomes into one file
@@ -269,7 +269,7 @@ sh calc_plot_PCs.sh -i $output -r $race_sex_file
 
 #do some clean-up
 printf "PC calculation complete. Doing some cleanup...\n"
-files_to_remove=$( find ${output_folder}/*.bed | grep -v "${output}.bed" )
+files_to_remove=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
 rm $files_to_remove
 
 printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
