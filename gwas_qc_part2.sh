@@ -165,7 +165,7 @@ fi
 printf "\nStep 5: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #make set with short name and freq file
-plink --bfile ${output} --freq --make-bed --out ${output_stem} > /dev/null
+plink --bfile ${output} --allow-no-sex --freq --make-bed --out ${output_stem} > /dev/null
 
 #run the imputation checking script
 perl HRC-1000G-check-bim.pl -b ${output_stem}.bim  -f ${output_stem}.frq -r ${ref_file_stem}.txt.gz -h -n > /dev/null
