@@ -10,7 +10,7 @@ display_usage() {
 Picks up after decisions have been made regarding PC outlier removal. Input dataset can be either the non-Hispanic white subset or include all races present. This script will perform the Hardy-Weinberg filter and prepare the files for upload to the TopMed Imputation Server. Will create all files within the same folder as the current plink fileset.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -b [input genome build] -n
+SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -R [ref_file_stem] -b [input genome build] -n -c
 
 
 output_stem = the prefix you want for the files right before imputation
@@ -23,20 +23,24 @@ ref_file_stem = the full file path and stem for the reference panel. Assumes it 
 
 -n = optional argument set to indicate not to exclude variants for not being in or not matching the reference panel; default is to exclude
 
+-c = optional argument to skip clean-up
+
 -h will show this usage
 "
 }
 #set default to do the exclusion and build to b37
 noexclude='false'
 build='b37'
+skip_cleanup='false'
 #parse arguments
-while getopts 'o:i:R:b:nh' flag; do
+while getopts 'o:i:R:b:nch' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
     R) ref_file_stem="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
     n) noexclude='true' ;;
+    c) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -201,9 +205,14 @@ fi
 
 #remove the intermediate .vcf and .bed files
 ##make sure that it only removes the files from running this script, not the initial files or files for other datsets
-rm ${output_path}/*.vcf
-files_to_remove=$( find ${output_path}/${input_stem}_hwe6*.bed | grep -v "${output}.bed" )
-rm $files_to_remove
+if [ "$skip_cleanup" = false ];
+then
+    rm ${output_path}/*.vcf
+    files_to_remove=$( find ${output_path}/${input_stem}_hwe6*.bed | grep -v "${output}.bed" | grep -v "${output_stem}-updated.bed" )
+    rm $files_to_remove
+else
+    printf "Skipping cleanup. Please manually remove unnecessary files.\n"
+fi
 
 printf "\nConversion complete! Upload the files (${output_stem}-updated-chr${i}.vcf.gz) to the imputation server.\n"
 
