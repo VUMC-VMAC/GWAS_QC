@@ -4,7 +4,7 @@ Here are the general steps in this pipeline:
 1. Pre-Imputation QC Part 1
    - Variant filtering excluding for missingness (>5%) and minor allele frequency (<0.01)
    - Sample missingness filtering (5%)
-   - Relatedness check (removes 1 of each pair of second degree relatives and both of each pair with a pi-hat >0.9)
+   - Relatedness check (removes 1 of each pair of second degree relatives, 0.9> pi-hat >0.25, and both of each pair with a pi-hat >=0.9)
    - Sex check (removes individuals with discrepancies)
    - Heterozygosity check
    - PC calculation and plotting
