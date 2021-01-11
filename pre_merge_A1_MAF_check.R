@@ -8,6 +8,9 @@ frq_files <- args[2:length(args)] #path with file name for frq files (including 
 #packages
 library(data.table)
 
+#limit the threads it can use
+setDTthreads(4)
+
 #read in frq files
 frq <- lapply(frq_files, fread)
 
