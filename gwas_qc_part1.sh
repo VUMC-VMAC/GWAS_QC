@@ -80,6 +80,9 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
 
+#get output folder
+output_folder=${output_stem%/*}
+
 
 ##### initial SNP filters #####
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
@@ -208,6 +211,7 @@ then
     printf "Output file: $output \n\n"
 fi
 
+
 ##### Calculate PCs within this dataset #####
 
 printf "\nStep 8: Running PC calculation with smartpca\n"
@@ -224,5 +228,11 @@ else
     printf "\nStep 9: Running PC calculation including 1000G samples with smartpca\n"
     sh calc_plot_PCs.sh -i $output -r $race_sex_file -G $stem_1000G 
 fi
+
+# get rid of all the bim files except the last one
+## make sure that it's only removing files from this set in case others are being run in the same folder
+printf "PC plots complete. Doing some clean-up...\n"
+files_to_delete=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
+rm $files_to_delete
 
 printf "Please check PC plots and decide what individuals to remove before proceeding to imputation preparation. \n"
