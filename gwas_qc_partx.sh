@@ -365,10 +365,14 @@ plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} --mem
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out}\n"
 grep -e ' people pass filters and QC.' ${plinkset_x_out}.log
+
 n_x2=$(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)
-printf "Removed PARS SNPs: $(( ${n_x} - ${n_x2}))\n"
+printf "Removed PARS SNPs wrt to raw input: $(( ${n_x} - ${n_x2}))\n"
 printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)\n"
 # exclude pseudoautosomal regions (PARs)
+n_par=$(awk '$1==25{print}' ${plinkset_x_in}.bim | wc -l)
+printf "Number of PARs SNPs removed (at Step3): ${n_par}\n"
+#printf "Number of X-chromosome SNPs: ${n_x2}\n"
 #n_par=$(awk '$1==25{print}' ${plinkset_x_out}.bim | wc -l)
 #printf "check: ${n_par} SNPs in PARs left.(should be = 0)\n"
 
