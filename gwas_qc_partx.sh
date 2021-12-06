@@ -175,33 +175,40 @@ input_plinkset=${input_fileset##*/}
 	printf " Input: ${plinkset_in}\n"
 	grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
 	printf " Output: ${plinkset_out} \n\n"
+
+
+        # long indel: smart pca limit 39 characters so keeping limit to 25
+        plinkset_in=${plinkset_out}
+        plinkset_out=${plinkset_in}_indel
+        awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+        plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out}  > /dev/null
+
+        grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+        grep -e ' people pass filters and QC' ${plinkset_out}.log
+        printf "Output file: ${plinkset_out} \n\n"
+
+
         #dups: only remove the duplicates keep the first variant(TODO keep with least missing)
         plinkset_in=${plinkset_out}
         plinkset_out=${plinkset_in}_dups
-                awk 'seen[$2]++{$2="DUPS"} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-
+                awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+        # dups marked
+        plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out} >/dev/null
 if [ "$skip_flag" = false ];
 then		
-	plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim --exclude <(printf "DUPS") --make-bed --out ${plinkset_out} >/dev/null
-	# (only works wth duplicates) plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first --make-bed -out ${plinkset_out}  > /dev/null
-else 
-	# no exclusion
-	plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out} >/dev/null	
+	plinkset_in=${plinkset_out}
+        plinkset_out=${plinkset_in}Excl
+	# plink --bfile  ${plinkset_in} --exclude <( awk '{print $2}' ${plinkset_in}.bim | grep 'DUPS' | awk '{print $2}' ) \
+#--make-bed --out ${plinkset_out} >/dev/null
+	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in}  > /dev/null
+	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} >/dev/null
+	printf " Dupli/Multiplicate variants excluded: $(wc -l <${plinkset_in}.dupvar)\n"
 fi
         printf " Input: ${plinkset_in}\n"
         grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
         grep -e ' people pass filters and QC' ${plinkset_out}.log
         printf "Output file: ${plinkset_out} \n\n"
 
-	# long indel: smart pca limit 39 characters so keeping limit to 25
-	plinkset_in=${plinkset_out}
-	plinkset_out=${plinkset_in}_indel
-	awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-	plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out}  > /dev/null
-		
-	grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-	grep -e ' people pass filters and QC' ${plinkset_out}.log
-	printf "Output file: ${plinkset_out} \n\n"
 	
 ##### initial SNP filters #####
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
@@ -365,14 +372,10 @@ plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} --mem
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out}\n"
 grep -e ' people pass filters and QC.' ${plinkset_x_out}.log
-
 n_x2=$(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)
-printf "Removed X chromosome SNPs wrt to raw input: $(( ${n_x} - ${n_x2}))\n"
+printf "Removed PARS SNPs: $(( ${n_x} - ${n_x2}))\n"
 printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)\n"
 # exclude pseudoautosomal regions (PARs)
-n_par=$(awk '$1==25{print}' ${plinkset_x_in}.bim | wc -l)
-printf "Number of PARs SNPs removed (at Step3): ${n_par}\n"
-#printf "Number of X-chromosome SNPs: ${n_x2}\n"
 #n_par=$(awk '$1==25{print}' ${plinkset_x_out}.bim | wc -l)
 #printf "check: ${n_par} SNPs in PARs left.(should be = 0)\n"
 
