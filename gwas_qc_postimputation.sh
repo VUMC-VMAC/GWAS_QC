@@ -23,7 +23,7 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
 
 -z indicates that the imputation results will need to be unzipped.
--x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
+-x indicates to skip the first R2<0.8 and multi-allelic variant filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
 -c will skip the clean-up at the end of the script which removes intermediate *.bed files.
 -h will display this message
 "
