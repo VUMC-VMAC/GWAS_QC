@@ -549,4 +549,4 @@ plink --bfile ${plinkset_x_in} --make-bed --out ${plinkset_x_out} --memory 15000
 printf " Input: ${plinkset_x_in} \n"
 grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
     printf " Output: ${plinkset_x_out} \n"
-printf "\n Final X-chromosome plinkset:\n ${plinkset_x_out} \n Part 1 ... Done!\n"
+printf "\n Final X-chromosome plinkset:\n ${plinkset_x_out} \n Part 1 ... Done! \n"
