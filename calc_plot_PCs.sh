@@ -11,17 +11,11 @@ Use this script to calculate and plot PCs with or without 1000G samples.
 
 Usage: SCRIPTNAME.sh -i [input_stem] -r [race_sex_file] -G [stem_1000G] -n -l [dataset_label]
 
-
 input_stem = the full path and file stem for the plink set for PC calculations '*[bed,bim,fam]'
-
 race_sex_file (optional) = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
-
 stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
-
 dataset_label (optional) = a label to be added to the current dataset's race categories on PC plots
-
 -n (optional) = indicates to not create the exclusion file. Default is to create it
-
 -h will show this usage
 "
 }
@@ -84,28 +78,7 @@ else
     exclusion_file="yes"
 fi
 
-
 ########################################### start of prep for PC calculation #######################################
-
-#do quick check of length of ids
-Rscript check_id_length.R $input_stem
-
-#get names of new person/SNP ids files (will only have been created if there need to be some updates)
-fam_ids=${input_stem}_dummy_famids.txt
-bim_ids=${input_stem}_shorter_bimids.txt
-
-if [ -f "$fam_ids" ];
-then
-    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids > /dev/null
-    input_stem=${input_stem}_dummy_famids
-fi
-
-if [ -f "$bim_ids" ];
-then
-    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids > /dev/null
-    input_stem=${input_stem}_shorter_bimids
-fi
-
 
 #if 1000G data was supplied, then merge it with the input dataset
 if [ ! -z $stem_1000G ];
@@ -167,46 +140,36 @@ fi
 
 printf "Prune genotypes\n"
 
+# combine FID and IID into the IID so that the ID will stay unique in the gds file
+# IDs will be 0 for FID and FID_IID for IID
+awk '{ print $1" "$2" 0 "$1"_"$2 }' ${pcainput}.fam > ${pcainput}_updateFIDIID.txt
+
 #prune and set phenotypes to 1
 plink --bfile $pcainput --indep-pairwise 200 100 0.2 --allow-no-sex --out  ${pcainput}_forprune > /dev/null
-plink --bfile $pcainput --output-missing-phenotype 1 --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
+plink --bfile $pcainput --output-missing-phenotype 1 --update-ids ${pcainput}_updateFIDIID.txt --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
 printf "$( wc -l < ${pcainput}_pruned.bim ) variants out of $( wc -l < ${pcainput}.bim ) left after pruning.\n\n"
+pcainput=${pcainput}_pruned
 
 #cleanup
 rm ${pcainput}*forprune*
 
-printf "Running smartpca...\n"
-#create input file for smartpca
-printf "genotypename: ${pcainput}_pruned.bed
-snpname: ${pcainput}_pruned.bim
-indivname: ${pcainput}_pruned.fam
-evecoutname: ${pcainput}_pruned.pca.evec
-evaloutname: ${pcainput}_pruned.eigenvalues
-altnormstyle: NO
-numoutevec: 10
-numoutlieriter: 0
-numoutlierevec: 10
-outliersigmathresh: 6
-qtmode: 0" > ${pcainput}_pccalc.par
-#run smartpca
-smartpca -p ${pcainput}_pccalc.par > ${pcainput}_pccalc.log
+# # generate a merged race/sex file if 1000G is present
+# if [ ! -z $stem_1000G ];
+# then
+#     awk -v datasetlab=$dataset_label '{ print $1" "$2" "$3" "datasetlab }' $race_sex_file > ${input_stem}_race.txt
+#     awk '{ print $1" "$2" "$3" 1000G" }' ${stem_1000G}_race.txt >> ${input_stem}_race.txt
+#     race_sex_file=${input_stem}_race.txt
+# fi
 
-printf "smartpca complete! Plotting...\n\n"
+################ Run R Script to calculate PCs ################
 
-#plot
-if [ -z $stem_1000G ];
+# if 1000G is present, supply the file with 1000G race categories. If not, run without
+if [ ! -z $stem_1000G ];
 then
-    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion, optional dataset label
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file none $exclusion_file $dataset_label
-    printf "Plots of PCs are saved here: ${pcainput}_pruned_PCplots.pdf."
-else  
-    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
-    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file $dataset_label
-    printf "Plots of PCs calculated with 1000G samples are saved here: ${pcainput}_pruned_PCplots.pdf."
+    Rscript calc_plot_PCs.R -i $pcainput -l $dataset_label -r $race_sex_file -R $stem_1000G -n $exclusion_file
+else
+    Rscript calc_plot_PCs.R -i $pcainput -l $dataset_label -r $race_sex_file -n $exclusion_file
 fi
 
-if [ "$exclusion_file" = "yes" ];
-then
-    printf "A file with ids for NHW who were not PC outliers (>5sd from the mean) is written out for your convenience if all outliers should be removed: ${pcainput}_pruned_nooutliers.txt\n"
-fi
+################ Clean-up ################
 
