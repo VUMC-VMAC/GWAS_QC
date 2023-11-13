@@ -11,11 +11,17 @@ Use this script to calculate and plot PCs with or without 1000G samples.
 
 Usage: SCRIPTNAME.sh -i [input_stem] -r [race_sex_file] -G [stem_1000G] -n -l [dataset_label]
 
+
 input_stem = the full path and file stem for the plink set for PC calculations '*[bed,bim,fam]'
+
 race_sex_file (optional) = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces.
+
 stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
+
 dataset_label (optional) = a label to be added to the current dataset's race categories on PC plots
+
 -n (optional) = indicates to not create the exclusion file. Default is to create it
+
 -h will show this usage
 "
 }
@@ -78,7 +84,28 @@ else
     exclusion_file="yes"
 fi
 
+
 ########################################### start of prep for PC calculation #######################################
+
+#do quick check of length of ids
+Rscript check_id_length.R $input_stem
+
+#get names of new person/SNP ids files (will only have been created if there need to be some updates)
+fam_ids=${input_stem}_dummy_famids.txt
+bim_ids=${input_stem}_shorter_bimids.txt
+
+if [ -f "$fam_ids" ];
+then
+    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids --memory 15000 > /dev/null
+    input_stem=${input_stem}_dummy_famids
+fi
+
+if [ -f "$bim_ids" ];
+then
+    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids --memory 15000 > /dev/null
+    input_stem=${input_stem}_shorter_bimids
+fi
+
 
 #if 1000G data was supplied, then merge it with the input dataset
 if [ ! -z $stem_1000G ];
@@ -89,31 +116,31 @@ then
     awk '{ print $2 }' ${input_stem}.bim > ${input_stem}_snps.txt
     
     #subset 1000G dataset to only variants present here
-    plink --bfile ${stem_1000G}  --output-missing-phenotype 1 --extract ${input_stem}_snps.txt --memory 15000 --make-bed --out ${input_stem}_1000G_overlapping > /dev/null
+    plink --bfile ${stem_1000G}  --output-missing-phenotype 1 --extract ${input_stem}_snps.txt --make-bed --out ${input_stem}_1000G_overlapping --memory 15000  > /dev/null
     stem_1000G_formerge=${input_stem}_1000G_overlapping
     num_1000G_snps=$( wc -l < ${stem_1000G_formerge}.bim )
     printf "$num_1000G_snps overlap between 1000G and the current dataset\n\n"
     
     #attempt merge  (catch output into a bash variable so it really doesn't print and be confusing)
     pcainput=${input_stem}_1000G_merged
-    tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --memory 15000 --make-bed --out ${pcainput} || true )
+    tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} --memory 15000 || true )
 
 
     if [ -f "${pcainput}-merge.missnp" ];
     then
 
 	#flip reference alleles on 1000G
-	plink --bfile ${stem_1000G_formerge} --flip ${pcainput}-merge.missnp --memory 15000 --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped  > /dev/null
+	plink --bfile ${stem_1000G_formerge} --flip ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped  --memory 15000 > /dev/null
 
 	#re-attempt the merge (catch output into a bash variable so it really doesn't print and be confusing)
-	tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped --memory 15000 --allow-no-sex --make-bed --out ${pcainput}_v2 || true )
+	tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped --allow-no-sex --make-bed --out ${pcainput}_v2 --memory 15000 || true )
 
 	#check to see if there are still problem variants
 	if [ -f "${pcainput}_v2-merge.missnp" ];
 	then
 
 	    #if there are issues, just remove them
-	    plink --bfile ${stem_1000G_formerge}_flipped --exclude ${pcainput}_v2-merge.missnp --memory 15000 --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped_noprobsnps > /dev/null
+	    plink --bfile ${stem_1000G_formerge}_flipped --exclude ${pcainput}_v2-merge.missnp --memory 15000  --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped_noprobsnps > /dev/null
 
 	    #re-attempt the merge
 	    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped_noprobsnps --memory 15000 --allow-no-sex --make-bed --out ${pcainput} > /dev/null
@@ -140,37 +167,46 @@ fi
 
 printf "Prune genotypes\n"
 
-# combine FID and IID into the IID so that the ID will stay unique in the gds file
-# IDs will be 0 for FID and FID_IID for IID
-awk '{ print $1" "$2" 0 "$1"_"$2 }' ${pcainput}.fam > ${pcainput}_updateFIDIID.txt
-
 #prune and set phenotypes to 1
 plink --bfile $pcainput --indep-pairwise 200 100 0.2 --memory 15000 --allow-no-sex --out  ${pcainput}_forprune > /dev/null
-plink --bfile $pcainput --output-missing-phenotype 1 --memory 15000 --update-ids ${pcainput}_updateFIDIID.txt --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
+plink --bfile $pcainput --output-missing-phenotype 1 --memory 15000 --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
 printf "$( wc -l < ${pcainput}_pruned.bim ) variants out of $( wc -l < ${pcainput}.bim ) left after pruning.\n\n"
 
 #cleanup
 rm ${pcainput}*forprune*
-#update input var
-pcainput=${pcainput}_pruned
 
-# # generate a merged race/sex file if 1000G is present
-# if [ ! -z $stem_1000G ];
-# then
-#     awk -v datasetlab=$dataset_label '{ print $1" "$2" "$3" "datasetlab }' $race_sex_file > ${input_stem}_race.txt
-#     awk '{ print $1" "$2" "$3" 1000G" }' ${stem_1000G}_race.txt >> ${input_stem}_race.txt
-#     race_sex_file=${input_stem}_race.txt
-# fi
+printf "Running smartpca...\n"
+#create input file for smartpca
+printf "genotypename: ${pcainput}_pruned.bed
+snpname: ${pcainput}_pruned.bim
+indivname: ${pcainput}_pruned.fam
+evecoutname: ${pcainput}_pruned.pca.evec
+evaloutname: ${pcainput}_pruned.eigenvalues
+altnormstyle: NO
+numoutevec: 10
+numoutlieriter: 0
+numoutlierevec: 10
+outliersigmathresh: 6
+qtmode: 0" > ${pcainput}_pccalc.par
+#run smartpca
+smartpca -p ${pcainput}_pccalc.par > ${pcainput}_pccalc.log
 
-################ Run R Script to calculate PCs ################
+printf "smartpca complete! Plotting...\n\n"
 
-# if 1000G is present, supply the file with 1000G race categories. If not, run without
-if [ ! -z $stem_1000G ];
+#plot
+if [ -z $stem_1000G ];
 then
-    Rscript calc_plot_PCs.R -i $pcainput -l $dataset_label -r $race_sex_file -R ${stem_1000G}_race.txt -o $exclusion_file
-else
-    Rscript calc_plot_PCs.R -i $pcainput -l $dataset_label -r $race_sex_file -o $exclusion_file
+    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion, optional dataset label
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file none $exclusion_file $dataset_label
+    printf "Plots of PCs are saved here: ${pcainput}_pruned_PCplots.pdf."
+else  
+    #arguments: PCA file, race/sex file, optional file with 1000G race, yes/no to indicate whether to output a file for outlier exclusion
+    Rscript plot_PCs_generate_ids_to_keep.R ${pcainput}_pruned.pca.evec $race_sex_file ${stem_1000G}_race.txt $exclusion_file $dataset_label
+    printf "Plots of PCs calculated with 1000G samples are saved here: ${pcainput}_pruned_PCplots.pdf."
 fi
 
-################ Clean-up ################
+if [ "$exclusion_file" = "yes" ];
+then
+    printf "A file with ids for NHW who were not PC outliers (>5sd from the mean) is written out for your convenience if all outliers should be removed: ${pcainput}_pruned_nooutliers.txt\n"
+fi
 
