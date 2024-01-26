@@ -58,9 +58,8 @@ names(pcs) <- c("ID", paste0("PC", 1:10))
 pcs[, paste0("PC", 1:10)] <- pcs[, lapply(.SD, as.numeric), .SDcols=paste0("PC", 1:10)]
 
 # split FID/IID
-#### AFTER THE TEST UPDATE THIS TO : RATHER THAN _ BECAUSE SOME IDS HAVE _
-pcs$FID <- sapply(strsplit(pcs$ID, "_"), "[", 1)
-pcs$IID <- sapply(strsplit(pcs$ID, "_"), "[", 2)
+pcs$FID <- sapply(strsplit(pcs$ID, ":"), "[", 1)
+pcs$IID <- sapply(strsplit(pcs$ID, ":"), "[", 2)
 pcs[,ID:=NULL]
 
 # remove as much as possible from env

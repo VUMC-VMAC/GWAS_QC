@@ -96,13 +96,13 @@ bim_ids=${input_stem}_shorter_bimids.txt
 
 if [ -f "$fam_ids" ];
 then
-    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids --memory 15000 > /dev/null
+    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids > /dev/null
     input_stem=${input_stem}_dummy_famids
 fi
 
 if [ -f "$bim_ids" ];
 then
-    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids --memory 15000 > /dev/null
+    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids > /dev/null
     input_stem=${input_stem}_shorter_bimids
 fi
 
@@ -116,40 +116,40 @@ then
     awk '{ print $2 }' ${input_stem}.bim > ${input_stem}_snps.txt
     
     #subset 1000G dataset to only variants present here
-    plink --bfile ${stem_1000G}  --output-missing-phenotype 1 --extract ${input_stem}_snps.txt --make-bed --out ${input_stem}_1000G_overlapping --memory 15000  > /dev/null
+    plink --bfile ${stem_1000G}  --output-missing-phenotype 1 --extract ${input_stem}_snps.txt --make-bed --out ${input_stem}_1000G_overlapping > /dev/null
     stem_1000G_formerge=${input_stem}_1000G_overlapping
     num_1000G_snps=$( wc -l < ${stem_1000G_formerge}.bim )
     printf "$num_1000G_snps overlap between 1000G and the current dataset\n\n"
     
     #attempt merge  (catch output into a bash variable so it really doesn't print and be confusing)
     pcainput=${input_stem}_1000G_merged
-    tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} --memory 15000 || true )
+    tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge} --allow-no-sex --make-bed --out ${pcainput} || true )
 
 
     if [ -f "${pcainput}-merge.missnp" ];
     then
 
 	#flip reference alleles on 1000G
-	plink --bfile ${stem_1000G_formerge} --flip ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped  --memory 15000 > /dev/null
+	plink --bfile ${stem_1000G_formerge} --flip ${pcainput}-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped  > /dev/null
 
 	#re-attempt the merge (catch output into a bash variable so it really doesn't print and be confusing)
-	tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped --allow-no-sex --make-bed --out ${pcainput}_v2 --memory 15000 || true )
+	tmp=$( plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped --allow-no-sex --make-bed --out ${pcainput}_v2 || true )
 
 	#check to see if there are still problem variants
 	if [ -f "${pcainput}_v2-merge.missnp" ];
 	then
 
 	    #if there are issues, just remove them
-	    plink --bfile ${stem_1000G_formerge}_flipped --exclude ${pcainput}_v2-merge.missnp --memory 15000  --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped_noprobsnps > /dev/null
+	    plink --bfile ${stem_1000G_formerge}_flipped --exclude ${pcainput}_v2-merge.missnp --allow-no-sex --make-bed --out ${stem_1000G_formerge}_flipped_noprobsnps > /dev/null
 
 	    #re-attempt the merge
-	    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped_noprobsnps --memory 15000 --allow-no-sex --make-bed --out ${pcainput} > /dev/null
+	    plink --bfile ${input_stem} --bmerge ${stem_1000G_formerge}_flipped_noprobsnps --allow-no-sex --make-bed --out ${pcainput} > /dev/null
 	else
 	    pcainput=${pcainput}_v2
 	fi
 
 	#filter to overlapping
-	plink --bfile ${pcainput} --geno 0.01 --allow-no-sex --memory 15000 --make-bed --out ${pcainput}_geno01  > /dev/null
+	plink --bfile ${pcainput} --geno 0.01 --allow-no-sex --make-bed --out ${pcainput}_geno01  > /dev/null
 	pcainput=${pcainput}_geno01
 	printf "$( wc -l < ${pcainput}.bim ) variants in dataset merged with 1000G\n\n"
     elif [ -f "${pcainput}.bed" ];
@@ -168,8 +168,8 @@ fi
 printf "Prune genotypes\n"
 
 #prune and set phenotypes to 1
-plink --bfile $pcainput --indep-pairwise 200 100 0.2 --memory 15000 --allow-no-sex --out  ${pcainput}_forprune > /dev/null
-plink --bfile $pcainput --output-missing-phenotype 1 --memory 15000 --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
+plink --bfile $pcainput --indep-pairwise 200 100 0.2 --allow-no-sex --out  ${pcainput}_forprune > /dev/null
+plink --bfile $pcainput --output-missing-phenotype 1 --extract  ${pcainput}_forprune.prune.in --make-bed --out ${pcainput}_pruned > /dev/null
 printf "$( wc -l < ${pcainput}_pruned.bim ) variants out of $( wc -l < ${pcainput}.bim ) left after pruning.\n\n"
 
 #cleanup

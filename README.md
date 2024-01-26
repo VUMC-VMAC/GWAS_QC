@@ -29,7 +29,6 @@ Depending on the size of the input dataset, it may be convenient to run the QC s
 
 Software used for QC:
 - plink, versions 1.9 and 2.0: https://www.cog-genomics.org/plink/
-- smartpca from Eigensoft: https://www.hsph.harvard.edu/alkes-price/software/
 - R 3.6.3: https://www.r-project.org/
 - bcftools: http://samtools.github.io/bcftools/bcftools.html
 - htslib: http://www.htslib.org/
