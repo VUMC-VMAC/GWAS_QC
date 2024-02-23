@@ -15,12 +15,24 @@ Here are the general steps in this pipeline:
    - Prepares files for uploading to the imputation server
 3. TOPMed Imputation
 4. Post-Imputation QC
-   - Variant filtering excluding for.
-      - imputation quality (<0.8)
-      - multi-allelic variants
-   - Hardy-Weinberg equilibrium (p<1e-6) and minor allele frequency (<0.01)
-   - Merging in genotyped variants with the imputed data
-   - PC calculation
+   - Option 1 (not using SNPWeights)
+	   - Variant filtering excluding for.
+	      - imputation quality (<0.8)
+	      - multi-allelic variants
+	   - Hardy-Weinberg equilibrium (p<1e-6) and minor allele frequency (<0.01)
+	   - Merging in genotyped variants with the imputed data
+	   - PC calculation
+     - Option 2 (using SNPWeights)
+	- Part 1
+	   - Variant filtering excluding for.
+	      - imputation quality (<0.8)
+	      - multi-allelic variants
+      	   - Minor allele frequency (<0.01)
+      	   - Merging in genotyped variants with the imputed data
+           - Infer ancestry using pre-calculated weights
+    	- Part 2
+	   - Hardy-Weinberg equilibrium (p<1e-6)
+	   - PC calculation
 
 
 Each step (except the TOPMed imputation) is run as a shell script in a singularity. The usage message for each of the scripts can be shown by running the script with the -h flag.
@@ -33,6 +45,8 @@ Software used for QC:
 - bcftools: http://samtools.github.io/bcftools/bcftools.html
 - htslib: http://www.htslib.org/
 - Imputation checking script from the McCarthy group: https://www.well.ox.ac.uk/~wrayner/tools/
+- Eigensoft: https://github.com/DReichLab/EIG
+- SNPWeights: https://www.hsph.harvard.edu/alkes-price/software/
 
 To be able to upload files for imputation to the TOPMed reference panel, please create an account on the TOPMed imputation server: https://imputation.biodatacatalyst.nhlbi.nih.gov/#!pages/home
 
@@ -40,6 +54,7 @@ Supplementary files not included in this github:
 - 1000G genetic data: https://www.internationalgenome.org/data/
 - TOPMed SNP information files
 - Singularity to run the GWAS QC
+- Weights to infer ancestry
 
 ## Pre-Imputation QC Part 1
 
@@ -166,6 +181,8 @@ singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/
 	    -s /ref/topmed_snp_names"
 ```
 
+The outputs from the first step will be a file (ending in *.out) which contains predicted ancestry and a pdf with plots of the predicted PCs. Before moving to the next step, subset the data into whatever ancestral categories are present and run the second step on each set. 
+
 To run the second step in the SNPWeights post-imputation step, run something like:
 ```
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
@@ -175,10 +192,9 @@ singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/
 	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt"
 ```
 
+## Additional notes on PC calculation
 
-
-
-To recalculate PCs, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
+To recalculate PCs using smartpca from eigensoft, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
   /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg \
@@ -186,3 +202,10 @@ singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
 
+An additional method to calculate PCs is also available using SNPRelate in R. This method is significantly faster than the smartpca method. To calculate PCs using this method, run a command similar to this:
+```
+singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg \
+  /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs_snprelate.sh \
+  -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
+```
