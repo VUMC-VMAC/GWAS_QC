@@ -37,9 +37,9 @@ while getopts 'o:r:ch' flag; do
 done
 
 #check to make sure necessary arguments are present                                                                                              
-if [ -z "$input_file_stem" ];
+if [ -z "$output_stem" ];
 then
-    printf "Error: Please supply an input file stem!!\n\n"
+    printf "Error: Please supply an input file stem!! Note that this should be the stem of the genotype files after performing SNPweights and applying any appropriate subsetting.\n\n"
     display_usage
     exit 1
 fi
@@ -55,7 +55,7 @@ printf "\nStep 1: Applying Hardy-Weinberg equilibrium filter.\n"
 
 # SNP filters
 output=${output_stem}_hwe6
-plink --bfile ${output_stem}--hwe 0.000001 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_stem} --hwe 0.000001 --make-bed --out ${output} > /dev/null
 grep -e "hwe: " -e 'pass filters and QC' ${output}.log
 printf "Output file: $output"
 
