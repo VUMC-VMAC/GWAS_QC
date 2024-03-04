@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 #fail on error
 set -e
@@ -280,8 +280,8 @@ predpcoutput: ${output}_overlap_pruned.out
 
 python /SNPweights2.1/inferancestry.py --par ${output}_overlap_pruned_infer_ancestry.par
 
-## generate a file with ancestral group categories
-Rscript plot_predictedPCs.R ${output}_overlap_pruned_infer_ancestry.par
+# ## generate a file with ancestral group categories
+# Rscript plot_predictedPCs.R ${output}_overlap_pruned_infer_ancestry.par
 
 if [ "$skip_cleanup" = 'true' ];
 then 
