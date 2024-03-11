@@ -84,28 +84,26 @@ else
     exclusion_file="yes"
 fi
 
-
 ########################################### start of prep for PC calculation #######################################
 
-#do quick check of length of ids
-Rscript check_id_length.R $input_stem
+# check lengths of variant and sample IDs
+## variant IDs
+awk 'length($2)>30{ print $2" "$1"_"$4 }' ${input_stem}.bim > ${input_stem}_shortvarids.txt
+## sample IDs
+awk '{ if(length($1)>30 || length($2)>30) print $1" "$2" "NR" "NR }' ${file_stem}.fam > ${file_stem}_shortfamids.txt
 
-#get names of new person/SNP ids files (will only have been created if there need to be some updates)
-fam_ids=${input_stem}_dummy_famids.txt
-bim_ids=${input_stem}_shorter_bimids.txt
-
-if [ -f "$fam_ids" ];
+# update bim IDs if that file is non-empty
+if [ -s "${input_stem}_shortvarids.txt" ];
 then
-    plink --bfile $input_stem --update-ids $fam_ids --make-bed --out ${input_stem}_dummy_famids > /dev/null
-    input_stem=${input_stem}_dummy_famids
+    plink --bfile $input_stem --update-ids ${input_stem}_shortvarids.txt --make-bed --out ${input_stem}_shortvarids > /dev/null
+    input_stem=${input_stem}_shortvarids
 fi
-
-if [ -f "$bim_ids" ];
+# update fam file if necessary
+if [ -s "${file_stem}_shortfamids.txt" ];
 then
-    plink --bfile $input_stem --update-name $bim_ids --make-bed --out ${input_stem}_shorter_bimids > /dev/null
-    input_stem=${input_stem}_shorter_bimids
+    plink --bfile $input_stem --update-name ${file_stem}_shortfamids.txt --make-bed --out ${input_stem}_shortfamids > /dev/null
+    input_stem=${input_stem}_shortfamids
 fi
-
 
 #if 1000G data was supplied, then merge it with the input dataset
 if [ ! -z $stem_1000G ];

@@ -158,7 +158,7 @@ then
 	awk 'length($2)>30{ print $2" "$1"_"$4 }' ${output_stem}_chr${i}_temp_nodups_names.bim > ${output_stem}_chr${i}_temp_nodups_names_shortids.txt
 	# if there are IDs to update, then update them
 	# either way, add the appropriate file name to the merge-list
-	if [[ $(ls ${output_stem}_chr${i}_temp_nodups_names_shortids.txt) ]] ;
+	if [ $(ls ${output_stem}_chr${i}_temp_nodups_names_shortids.txt) ] ;
 	then
 	    plink --bfile ${output_stem}_chr${i}_temp_nodups_names --update-name ${output_stem}_chr${i}_temp_nodups_names_shortids.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names_shorterids --memory 15000 > /dev/null ; 
 	    printf "Updating $( grep 'updated' ${output_stem}_chr${i}_temp_nodups_names_shorterids.log | awk '{ print $2 }') too-long IDs from chr ${i}...\n" ; 
@@ -293,6 +293,10 @@ predpcoutput: ${output}_overlap_pruned.out
 
 python /SNPweights2.1/inferancestry.py --par ${output}_overlap_pruned_infer_ancestry.par
 
+# Separate samples into ancestral categories based on standard thresholds
+Rscript assign_ancestral_categories.R ${output}_overlap_pruned.out
+printf "Ancestry estimates have been calculated and standard thresholds have been applied. Check the resulting files to determine which subsets have enough samples to carry forward.\n"
+
 # ## generate a file with ancestral group categories
 # Rscript plot_predictedPCs.R ${output}_overlap_pruned_infer_ancestry.par
 
@@ -304,7 +308,5 @@ then
     rm $files_to_remove
 else
     #tell the user to do the cleanup
-    printf "PC calculation complete. The -c flag was specified to skip clean-up. Please remove any unnecessary *.bed files once complete to conserve space!\n"
+    printf "The -c flag was specified to skip clean-up. Please remove any unnecessary *.bed files once complete to conserve space!\n"
 fi
-
-printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
