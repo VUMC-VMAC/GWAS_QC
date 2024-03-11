@@ -10,13 +10,14 @@ display_usage() {
 This script will conclude the post-imputation process, performing the HWE filter, checking heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
-SCRIPTNAME.sh -o [input_file_stem] -r [race_sex_file] -c
+SCRIPTNAME.sh -o [input_file_stem] -r [race_sex_file] -c -p
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
 race_sex_file (optional) = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
 
 -c will skip the clean-up at the end of the script which removes intermediate *.bed files.
+-p will skip the PC calculation at the end (only should be done if this set will be merged with other sets in the same cohort).
 -h will display this message
 "
         }
@@ -25,11 +26,13 @@ race_sex_file (optional) = a file with FID and IID (corresponding to the fam fil
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:r:ch' flag; do
+skip_pccalc='false'
+while getopts 'o:r:cph' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     r) race_sex_file="${OPTARG}" ;;
     c) skip_cleanup='true' ;;
+    p) skip_pccalc='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
@@ -82,16 +85,23 @@ then
 fi
 
 ##### PC calculation ####
-printf "\nStep 7: Calculating post-imputation PCs\n\n"
+if [ "$skip_pccalc" = 'true' ];
+then 
+    printf "\nStep 7: Calculating post-imputation PCs\n\n"
 
-# Calculate PCs, coloring based on ancestry categories if present
-if [ ! -z "$race_sex_file" ]; 
-then
-    sh calc_plot_PCs.sh -i $output -r $race_sex_file
+    # Calculate PCs, coloring based on ancestry categories if present
+    if [ ! -z "$race_sex_file" ]; 
+    then
+	sh calc_plot_PCs.sh -i $output -r $race_sex_file
+    else
+	sh calc_plot_PCs.sh -i $output 
+    fi
+
+    printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
+
 else
-    sh calc_plot_PCs.sh -i $output 
+    printf "\nSkipping calculation of post-imputation PCs because the -p flag was supplied.\n\n"
 fi
-
 
 if [ "$skip_cleanup" = 'true' ];
 then 
@@ -104,5 +114,4 @@ else
     printf "PC calculation complete. The -c flag was specified to skip clean-up. Please remove any unnecessary *.bed files once complete to conserve space!\n"
 fi
 
-printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
 

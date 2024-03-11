@@ -137,6 +137,9 @@ fi
 
 if [ $skip_first_filters = 'false' ];
 then
+    # before the loop, initialize the file for merging each chr together
+    echo "" | tee ${output_stem}_merge_list.txt
+
     #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
     printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
     for i in $(seq 1 22); do
@@ -150,6 +153,22 @@ then
 	
 	#update variant names with rs numbers
 	plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names > /dev/null
+	
+	#check the length of variant IDs
+	awk 'length($2)>30{ print $2" "$1"_"$4 }' ${output_stem}_chr${i}_temp_nodups_names.bim > ${output_stem}_chr${i}_temp_nodups_names_shortids.txt
+	# if there are IDs to update, then update them
+	# either way, add the appropriate file name to the merge-list
+	if [[ $(ls ${output_stem}_chr${i}_temp_nodups_names_shortids.txt) ]] ;
+	then
+	    plink --bfile ${output_stem}_chr${i}_temp_nodups_names --update-name ${output_stem}_chr${i}_temp_nodups_names_shortids.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names_shorterids --memory 15000 > /dev/null ; 
+	    printf "Updating $( grep 'updated' ${output_stem}_chr${i}_temp_nodups_names_shorterids.log | awk '{ print $2 }') too-long IDs from chr ${i}...\n" ; 
+	    printf "${output_stem}_chr${i}_temp_nodups_names_shorterids\n" >> ${output_stem}_merge_list.txt
+	else
+	    printf "IDs in chr ${i} ok.\n"
+	    printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
+	fi
+
+
     done
 
     #print out numbers of variants
@@ -160,13 +179,7 @@ then
 
     #Merge all chromosomes into one file
     printf "Step 3 : Merging all chromosomes into one file\n"
-    #create merge file (emptying old version if present)
-    echo "" | tee ${output_stem}_merge_list.txt
-    for i in $( seq 1 22 );
-    do
-	printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
-    done
-    
+
     #merge individual chromosome files to be one large file
     output=${output_stem}
     plink --merge-list ${output_stem}_merge_list.txt --make-bed --out $output > /dev/null
