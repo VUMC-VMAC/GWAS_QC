@@ -27,11 +27,10 @@ Here are the general steps in this pipeline:
 	   - Variant filtering excluding for.
 	      - imputation quality (<0.8)
 	      - multi-allelic variants
-      	   - Minor allele frequency (<0.01)
       	   - Merging in genotyped variants with the imputed data
            - Infer ancestry using pre-calculated weights
     	- Part 2
-	   - Hardy-Weinberg equilibrium (p<1e-6)
+	   - Hardy-Weinberg equilibrium (p<1e-6) and minor allele frequency (<0.01)
 	   - PC calculation
 
 
@@ -161,10 +160,9 @@ Running this pipeline involves two scripts. The first will run all the initial p
 - Filter for R2>0.8
 - Removing multi-allelic variants
 - Merging back in genotyped variants
-- Remove variants with MAF<0.01
 - Infer ancestry
 The second script will run the post-imputation steps and should be run in the dataset after separating the data into the genetically similar groups. Specifically, the following steps will be done:
-- Filter out variants with HWE p<0.000001
+- Filter out variants with HWE p<0.000001 and MAF<0.01
 - Check heterozygosity and remove outliers if present
 - Calculate PCs 
 
