@@ -249,16 +249,8 @@ output=${output}_merged
 printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
 printf "Output file: $output"
 
-# Filter for MAF
-printf "\nStep 5: Filter for MAF<0.01.\n"
-output_last=$output
-output=${output}_maf01
-plink --bfile ${output_last} --maf 0.01 --make-bed --out ${output} > /dev/null
-grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
-printf "Output file: $output"
-
 # Calculate SNPWeights
-printf "\nStep 6: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights.\n"
+printf "\nStep 5: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights.\n"
 ## Filter down to the variants in 1000G
 plink --bfile ${output} --extract ${snpweights_file}_snp.txt --make-bed --out ${output}_overlap > /dev/null 
 grep -e 'pass filters and QC' ${output}.log

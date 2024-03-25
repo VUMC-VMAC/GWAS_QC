@@ -7,7 +7,7 @@ set -e
 display_usage() {
     printf "GWAS QC post-imputation script, part 2
 
-This script will conclude the post-imputation process, performing the HWE filter, checking heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
+This script will conclude the post-imputation process, performing the MAF and HWE filters, checking sample heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
 SCRIPTNAME.sh -o [input_file_stem] -r [race_sex_file] -c -p
@@ -54,16 +54,16 @@ Output file path and stem for cleaned imputed files : $output_stem
 Race/sex information file : $race_sex_file
 "
 
-printf "\nStep 1: Applying Hardy-Weinberg equilibrium filter.\n"
+printf "\nStep 1: Applying Hardy-Weinberg equilibrium and MAF filters.\n"
 
 # SNP filters
-output=${output_stem}_hwe6
-plink --bfile ${output_stem} --hwe 0.000001 --make-bed --out ${output} > /dev/null
-grep -e "hwe: " -e 'pass filters and QC' ${output}.log
+output=${output_stem}_hwe6_maf01
+plink --bfile ${output_stem} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} > /dev/null
+grep -e "removed due to minor allele threshold" -e "hwe: " -e 'pass filters and QC' ${output}.log
 printf "Output file: $output"
 
 # prune for heterozygosity check
-printf "\n\nStep 6: Pruning and running heterozygosity check\n"
+printf "\n\nStep 2: Pruning and running heterozygosity check\n"
 plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
 plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
 rm ${output}_prune.*
@@ -87,7 +87,7 @@ fi
 ##### PC calculation ####
 if [ "$skip_pccalc" = 'true' ];
 then 
-    printf "\nStep 7: Calculating post-imputation PCs\n\n"
+    printf "\nStep 3: Calculating post-imputation PCs\n\n"
 
     # Calculate PCs, coloring based on ancestry categories if present
     if [ ! -z "$race_sex_file" ]; 
@@ -113,5 +113,3 @@ else
     #tell the user to do the cleanup
     printf "PC calculation complete. The -c flag was specified to skip clean-up. Please remove any unnecessary *.bed files once complete to conserve space!\n"
 fi
-
-
