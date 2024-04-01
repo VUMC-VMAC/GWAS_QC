@@ -85,7 +85,7 @@ then
 fi
 
 ##### PC calculation ####
-if [ "$skip_pccalc" = 'true' ];
+if [ "$skip_pccalc" = 'false' ];
 then 
     printf "\nStep 3: Calculating post-imputation PCs\n\n"
 
