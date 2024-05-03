@@ -54,7 +54,7 @@ if(race_file != "none"){
   
   #read in race
   data <- fread(race_file, data.table = F, header = F)
-  names(data) <- c("FID", "IID", "race", "sex")
+  names(data) <- c("FID", "IID", "race")
   data$set <- "current"
   
 } 

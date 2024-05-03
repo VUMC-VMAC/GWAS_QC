@@ -226,7 +226,7 @@ fi
 
 printf "\nStep 8: Running PC calculation with smartpca\n"
 
-# set up the race option
+# set up the race option to include race file if it is present
 if [ -z $race_file ]; then option_race="" ; else option_race=$( printf "-r ${race_file}" ); fi
 
 if [ -z $stem_1000G ];
