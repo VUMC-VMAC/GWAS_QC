@@ -17,14 +17,17 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified(assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -c [CHR] -o [output_stem] -i [imputation_results_folder] -r [race_sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
+SCRIPTNAME.sh -c [CHR] -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
 
 CHR = X; Chromosome number [int 1-26] to be processed
+
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
 imputation_results_folder = the folder to which the imputation results have been downloaded which also contains a file called pass.txt with the password to unzip the imputation results files
 
-race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
+sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
+
+race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
 
 snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
@@ -67,12 +70,13 @@ Step9: keep individuals in final autosomal plinkset \n\n"
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'c:o:i:r:s:g:p:zxdh' flag; do
+while getopts 'c:o:i:r:f:s:g:p:zxdh' flag; do
   case "${flag}" in
     c) CHR="${OPTARG}";; # VJ: TODO include test for CHR -lt 26 and -gt 0
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
-    r) race_sex_file="${OPTARG}" ;;
+    r) race_file="${OPTARG}" ;;
+    f) sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;\
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
@@ -109,7 +113,7 @@ Step8: keep SNPs overlapping in males and females (skip for single sex cohorts)
 Step9: keep individuals in final autosomal plinkset \n\n"
 
 #check to make sure necessary arguments are present                                                                                                    
-if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$race_sex_file" ] || [ -z "${snp_names_file}" ] ;
+if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$race_file" ] || [ -z "${snp_names_file}" ] ;
 then
     printf "Error: Necessary arguments not present! \n\n"
     display_usage
@@ -121,7 +125,8 @@ printf "GWAS QC Post-imputation Script
 
 Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
-Race/sex information file : ${race_sex_file}
+Sex information file : ${sex_file}
+Race information file : ${race_file}
 Stem for files for SNP name conversion : ${snp_names_file}_chr${CHR}
 "
 if [ "$do_unzip" = 'false' ];
@@ -143,11 +148,17 @@ then
     exit 1
 fi
 
-
-#validate the race/sex file
-if [ ! -f "$race_sex_file" ];
+#validate the sex file
+if [ ! -f "$sex_file" ]; 
 then
-    printf "The race/sex file supplied ($race_sex_file) does not exist! Please try again, specifying the correct input file. \n"
+    printf "File with sex information ($sex_file) does not exist! Please try again, specifying the correct input file.\n"
+    exit 1
+fi
+
+#validate the race file
+if [ ! -f "$race_file" ]; 
+then
+    printf "File with race information ($race_file) does not exist! Please try again, specifying the correct input file.\n"
     exit 1
 fi
 
@@ -241,17 +252,16 @@ printf "Step 4 : Updating sex in the fam file and applying standard variant filt
 output_last=$output
 output=${output}_IDs
 # awk '{ print }' $preimputation_geno}.bim > ${output_last}_update_ids.txt
-awk '{ print "0 "$1"_"$2" "$1" "$2 }' $race_sex_file > ${output_last}_update_ids.txt
+awk '{ print "0 "$1"_"$2" "$1" "$2 }' $sex_file > ${output_last}_update_ids.txt
 plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --memory 15000 --make-bed --out $output > /dev/null
 
 #update SNP names and add sex back into fam file
 output_last=$output
 output=${output}_sex
-plink --bfile ${output_last} --update-sex ${race_sex_file} 2 --memory 15000 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_last} --update-sex ${sex_file} --memory 15000 --make-bed --out ${output} > /dev/null
 printf "FID IID updated: 0 FID_IID -> FID IID \n"
-printf "sex updated: ${race_sex_file} \n"
+printf "sex updated: ${sex_file} \n"
 grep -e "people updated" ${output}.log
-
 
 n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
 sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | awk '{print $2}' ) 

@@ -12,7 +12,7 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -r [race_file] -s [sex_file] -G [stem_1000G]
+SCRIPTNAME.sh -o [output_stem] -i [input_fileset] -r [race_file] -f [sex_file] -G [stem_1000G]
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -20,7 +20,7 @@ input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam
 
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
-race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
+race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
 
 stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
 
@@ -28,12 +28,12 @@ stem_1000G (optional) = the full path and stem to the 1000G genotype files in pl
 "
         }
 
-while getopts 'o:i:r:s:G:h' flag; do
+while getopts 'o:i:r:f:G:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
     r) race_file="${OPTARG}" ;;
-    s) sex_file="${OPTARG}" ;;
+    f) sex_file="${OPTARG}" ;;
     G) stem_1000G="${OPTARG}" ;;
     h) display_usage ; exit ;;
     \?|*) display_usage

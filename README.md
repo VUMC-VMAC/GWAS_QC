@@ -59,19 +59,22 @@ Supplementary files not included in this github:
 
 Files needed for the Pre-Imputation QC Part 1 script:
 - Raw genotype files
-- Singularity container (current version: CNT_genomic_processing_v3.simg)
-- Files with FID, IID, race, and sex for each set
-  - The race column should have non-Hispanic whites coded as "White" and none of the values can have spaces. Sex should be coded as 1=male, 2=female, 0=unknown.
+- Singularity container (current version: CNT_genomic_processing_v3.5.simg)
+- File with FID, IID, and sex for each set
+  - Sex should be coded as 1=male, 2=female, 0=unknown.
+- File with FID, IID, and race for each set
+  - Non-Hispanic whites coded as "White" or "EUR" and none of the values can have spaces.
 - 1000G files to use in calculating PCs (optional)
 
 
-To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. This script will take between 40 minutes to an hour to run, depending on the size of your dataset. As in the example below, -i specifies the input genotypes stem, -o specifies the output stem, -r specifies the race/sex file, and -G specifies the 1000G data.
+To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. This script will take between 40 minutes to an hour to run, depending on the size of your dataset. As in the example below, -i specifies the input genotypes stem, -o specifies the output stem, -r specifies the race file, -f specifies the sex file, and -G specifies the 1000G data.
 ```
 singularity exec --containall --bind /nfs:/nfs --bind  /data/h_vmac/GWAS_QC/:/ref/ --bind  /scratch/:/scratch/   \ 
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 	    sh gwas_qc_part1.sh -i   /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Raw/A4_ids_sex \
 	    -o   /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part1/A4_genotyped \
-	    -r   /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
+	    -r   /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
+	    -f   /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
 	    -G   /ref/1000G_data/1000G_cleaned |& tee /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part1/A4_gwas_qc_part1.log"
 ```
 
@@ -86,13 +89,12 @@ Once the part 1 script completes, view the resulting PC plots and make decisions
 
 ## Pre-Imputation QC Part 2
 
-We run the part 2 pre-imputation QC and every step following in samples of all races as well as in just non-Hispanic whites.
+We run the part 2 pre-imputation QC and every step following in each ancestral category.
 
 Files needed for the Pre-Imputation QC Part 2 script:
-- Singularity container (current version: CNT_genomic_processing_v3.simg)
+- Singularity container (current version: CNT_genomic_processing_v3.5.simg)
 - Genotype files resulting from the part 1 script
 - Reference panel files
-
 
 To run the part 2 script, run a command similar to the one below:
 ```
@@ -119,41 +121,25 @@ Alternatively, the imputation results can be unzipped before running the post-im
 
 There are two options for post-imputation QC. If you are QC-ing a dataset which has diverse genetic data, you will want to run the post-imputation pipeline using SNPWeights. SNPWeights allows for inferring ancestry and subsetting people into groups with greater genetic similarity rather than simply self-report. Otherwise, you can run the one-step GWAS QC pipeline. 
 
-Files needed for the Pre-Imputation QC Part 2 script:
+Files needed for the Post-imputation QC:
 - Singularity container (current version: CNT_genomic_processing_v3.simg)
 - Imputation results and password to unzip them
-- File with race and sex for the dataset (used in the pre-imputation part 1 step)
+- File with sex for the dataset (used in the pre-imputation part 1 step)
   - Note that this *must* include every sample that is in the imputation files to be able to update FID/IID and sex correctly as well as to merge in the genotype data correctly.
 - Files to convert variant ids back to rs number
 - Cleaned genotype files to merge back in
   - This will be the last file from pre-imputation QC, before prep for the imputation server (ending in *_chr_bplifted_nosamepos or *_chr_bplifted, depending on whether there are multi-allelic or duplicated variants to remove)
 
-If you get an error because there is incomplete overlap between the genotyped and imputed files, it is likely there was some issue with converting the imputed ids back to FID and IID. To resolve this issue, ensure that the supplied race/sex file has every sample in the imputed files.
-
-### Non-SNPWeights post-imputation QC
-
-To run the post-imputation QC, run a command similar to the one below.
-```
-singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    sh gwas_qc_postimputation.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
-	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
-	    -g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
-	    -s /ref/topmed_snp_names"
-```
-
-Post-imputation QC main output files:
-- Main log file
-- PCs and PC plots
-- Cleaned, imputed+genotyped plink files
-
-After the post-imputation QC runs, check the principal components for outliers, removing any if necessary and recalculating PCs.
+If you get an error because there is incomplete overlap between the genotyped and imputed files, it is likely there was some issue with converting the imputed ids back to FID and IID. To resolve this issue, ensure that the supplied sex file has every sample in the imputed files.
 
 ### SNPWeights post-imputation
 
+Running post-imputation with SNPWeights will take place in two steps. The first step is to merge together the imputed variants and the genotyped variants and calculate ancestral cateogries using SNPWeights. Before the next step, samples will be split into ancestral categories. The second is to perform final filtering (MAF, HWE, heterozygosity, and final PCs) on each ancestral category.
+
 Additional files required for the Post-imputation SNPWeights Part 1 script:
 - File with pre-calculated SNP weights from which to infer ancestry (current version: /data/h_vmac/GWAS_QC/1000G_data/1000G_snpwt; note that there must be an additional file with the same stem ending in *_snp.txt that lists the variants in the weights file). 
+
+#### Part 1
 
 Running this pipeline involves two scripts. The first will run all the initial post-imputation steps up to inferring ancestry including:
 - Unzipping results from the imputation server (if -z is supplied)
@@ -181,14 +167,39 @@ singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/
 
 The outputs from the first step will be a file (ending in *.out) which contains predicted ancestry and a pdf with plots of the predicted PCs. Before moving to the next step, subset the data into whatever ancestral categories are present and run the second step on each set. 
 
+#### Part 2
+
 To run the second step in the SNPWeights post-imputation step, run something like:
 ```
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
 	    sh gwas_qc_postimputation_part2.sh \
 	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt"
+	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt"
 ```
+
+
+### Non-SNPWeights post-imputation QC
+
+To run the post-imputation QC, run a command similar to the one below.
+```
+singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
+	    sh gwas_qc_postimputation.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
+	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
+	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
+	    -f /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
+	    -g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
+	    -s /ref/topmed_snp_names"
+```
+
+Post-imputation QC main output files:
+- Main log file
+- PCs and PC plots
+- Cleaned, imputed+genotyped plink files
+
+After the post-imputation QC runs, check the principal components for outliers, removing any if necessary and recalculating PCs.
+
 
 ## Additional notes on PC calculation
 

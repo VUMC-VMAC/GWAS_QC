@@ -113,6 +113,13 @@ if(race_file != "none" || race_1000G_file != "none"){
   PC4_thresh <- c((mean(data$PC4)-5*sd(data$PC4)), (mean(data$PC4)+5*sd(data$PC4)))
 }
 
+#regardless of whether 1000G data is present or not,
+#add dataset label to this dataset's race categories
+#if a label was supplied
+if(dataset_label != "none"){
+  data$race[data$set == "current"] <- paste(dataset_label, data$race[data$set == "current"], sep = " ")
+}
+
 ###################### Generate plots ########################
 
 #create plots

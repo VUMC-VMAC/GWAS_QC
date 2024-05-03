@@ -10,11 +10,11 @@ display_usage() {
 This script will conclude the post-imputation process, performing the MAF and HWE filters, checking sample heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
-SCRIPTNAME.sh -o [input_file_stem] -r [race_sex_file] -c -p
+SCRIPTNAME.sh -o [input_file_stem] -r [race_file] -c -p
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
-race_sex_file (optional) = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed. This will be used to update sex in the fam file. 
+race_file = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots with NO header. Values in this file will typically be the SNPWeights-derived ancestral groups. 
 
 -c will skip the clean-up at the end of the script which removes intermediate *.bed files.
 -p will skip the PC calculation at the end (only should be done if this set will be merged with other sets in the same cohort).
@@ -30,7 +30,7 @@ skip_pccalc='false'
 while getopts 'o:r:cph' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
-    r) race_sex_file="${OPTARG}" ;;
+    r) race_file="${OPTARG}" ;;
     c) skip_cleanup='true' ;;
     p) skip_pccalc='true' ;;
     h) display_usage ; exit ;;
@@ -51,7 +51,7 @@ fi
 printf "GWAS QC Post-imputation Script, part 2
 
 Output file path and stem for cleaned imputed files : $output_stem
-Race/sex information file : $race_sex_file
+Race information file : $race_file
 "
 
 printf "\nStep 1: Applying Hardy-Weinberg equilibrium and MAF filters.\n"
@@ -90,9 +90,9 @@ then
     printf "\nStep 3: Calculating post-imputation PCs\n\n"
 
     # Calculate PCs, coloring based on ancestry categories if present
-    if [ ! -z "$race_sex_file" ]; 
+    if [ ! -z "$race_file" ]; 
     then
-	sh calc_plot_PCs.sh -i $output -r $race_sex_file
+	sh calc_plot_PCs.sh -i $output -r $race_file
     else
 	sh calc_plot_PCs.sh -i $output 
     fi

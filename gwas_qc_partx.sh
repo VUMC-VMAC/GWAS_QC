@@ -19,15 +19,16 @@ Completes the first stage (including X-chromosome) in standard GWAS QC, includin
 the phenotype column in .fam is updated with sex in process.
 
 Usage:
-gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -r [race_sex_file] -G [stem_1000G] -b [b37] -p [ds_plinkset] -s
+gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -r [race_file] -f [sex_file] -G [stem_1000G] -b [b37] -p [ds_plinkset] -s
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
 input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam]'
 
-race_sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating both race and ethnicity for PC plots, and another indicating sex for the sex check (1 for male
-s, 2 for females, 0 if unknown), with NO header. Non-hispanic whites need to be indicated with 'White.' No other values in the race column must be fixed; however, the race column must not
-include spaces.
+sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
+
+race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
+
 
 stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (i
 e for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
@@ -39,11 +40,12 @@ e for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam th
         }
 
 skip_flag='false'
-while getopts 'o:i:r:G:b:p:sh' flag; do
+while getopts 'o:i:r:f:G:b:p:sh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
-    r) race_sex_file="${OPTARG}" ;;
+    r) race_file="${OPTARG}" ;;
+    f) sex_file="${OPTARG}" ;;
     G) stem_1000G="${OPTARG}" ;;
     p) ds_plinkset="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
@@ -63,7 +65,7 @@ x_process_flag=1
 
 
 #check to make sure necessary arguments are present
-if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$race_sex_file" ] ;
+if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$sex_file" ] ;
 then
     printf "Error: Necessary arguments not present!\n\n"
     display_usage
@@ -80,7 +82,7 @@ Step2: person missingness
 Step3: Relatedness
         removes 1 of each pair of second degree relatives, 0.9> pi-hat >0.25, and both of each pair with a pi-hat >=0.9
 Step4: Sex check
-        update sex in .fam with race_and_sex_file
+        update sex in .fam with sex_file
         removes individuals with discrepancies
 ########## X-chromosome Processing ##########
 Step1: Assign pseudoautosomal regions (PARS) based on build
@@ -109,7 +111,7 @@ printf "GWAS QC Part 1 (including X-chromosome) Script
 
 Input data : $input_fileset
 Output stem : $output_stem
-File with race/ethnicity and sex information : $race_sex_file
+File with sex information : $sex_file
 Number of X-chromosome SNPs: ${n_x}
 "
 if [[ ${n_x} -lt 300 ]]; 
@@ -135,6 +137,14 @@ then
 else
     echo $stem_1000G
     printf "1000G data for PC calculation : ${stem_1000G}\n\n"
+fi
+
+#print message if the race file is not specified
+if [ -z "$race_file" ];
+then
+    printf "No file was supplied with self-report race information, so PCs will not be colored based on these values.\n\n"
+else
+    printf "Self-report race values will be drawn from ${race_file} in order to color PCs.\n\n"
 fi
 
 
@@ -263,14 +273,14 @@ printf "Output file: $output \n"
 printf "\nStep 4: sex check\n"
 
 #only update sex if there is something more than missing values for sex in the provided file
-if [ "$( awk '{ print $4 }' $race_sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
+if [ "$( awk '{ print $3 }' $sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
 then
     output_last=$output
     output=${output}_sex
-    plink --bfile $output_last --update-sex $race_sex_file 2 --make-bed --out $output > /dev/null
-    printf "Updated sex from the provided file: $race_sex_file \n"
+    plink --bfile $output_last --update-sex $sex_file --make-bed --out $output > /dev/null
+    printf "Updated sex from the provided file: $sex_file \n"
 else
-    printf "No non-missing sex information in the provided file (${race_sex_file}). Using sex from fam file.\n"
+    printf "No non-missing sex information in the provided file (${sex_file}). Using sex from fam file.\n"
 fi
 #do the check
 plink --bfile $output --check-sex --out ${output}_checking_sex > /dev/null
