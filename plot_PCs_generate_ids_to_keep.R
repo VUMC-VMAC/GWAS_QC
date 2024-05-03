@@ -1,12 +1,14 @@
 args <- commandArgs(TRUE)
 pcs_file <- args[1]
-race_file <- args[2] #defines race file for main dataset; set to "none" if plots should not be colored on race
+race_file <- args[2] #defines race file for main dataset; set to "none" if plots should not be colored on self-report race
 race_1000G_file <- args[3] #defines race file for 1000G; set to "none" if 1000G were not included in these PCs
 write_excl_file <- args[4] #defines whether or not to write out a file for default exclusion decisions
 dataset_label <- args[5] #defines label for the race categories in the current set; set to "none" if unspecified
 
 library(ggplot2)
 library(data.table)
+
+###################### Read in PCs ########################
 
 pc_file_stem <- gsub(".pca.evec", "", pcs_file)
 
@@ -42,6 +44,12 @@ if(length(list.files(path = geno_file_path, pattern = "_dummy_famids.txt"))>0){
   print(paste("Hash list of FID/IIDs found! Please be sure to update your fam file with the correct IDs using", update_ids_filename, "before subsetting for race or moving to imputation!"))
 }
 
+###################### Set up plotting df ########################
+
+# set up df for plotting by reading in self-report/external race categories and generating thresholds
+
+## if cohort race file is present, read in. 
+## Otherwise, generate df with IDs and blank columns
 if(race_file != "none"){
   
   #read in race
@@ -49,52 +57,54 @@ if(race_file != "none"){
   names(data) <- c("FID", "IID", "race", "sex")
   data$set <- "current"
   
-  if(race_1000G_file != "none"){
-    #read in race for 1000G
-    data_1000G <- fread(race_1000G_file, header = F)
-    names(data_1000G) <- c("FID", "IID", "race")
-    data_1000G$set <- "1000G"
-    
-    #add 1000G to race values
-    data_1000G$race <- paste("1000G", data_1000G$race, sep = " ")
-    
-    #combine with the current dataset's race
-    data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])
-    
-    #merge race and PCs
-    data <- merge(pcs, data, by = c("FID", "IID"))
-    
-    #get NHW subset
-    data_nhw <- data[data$race %in% c("1000G EUR", "White"),]
-    
-    #set outlier thresholds based on NHW in 1000G and current dataset
-    PC1_thresh <- c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))
-    PC2_thresh <- c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2)))
-    PC3_thresh <- c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3)))
-    PC4_thresh <- c((mean(data_nhw$PC4)-5*sd(data_nhw$PC4)), (mean(data_nhw$PC4)+5*sd(data_nhw$PC4)))
-    
-    #remove NHW dataframe since it's not needed anymore
-    rm(data_nhw)
-  } else {
-    #merge race and PCs
-    data <- merge(pcs, data, by = c("FID", "IID"))
-    
-    #set outlier thresholds based on whole sample
-    PC1_thresh <- c((mean(data$PC1)-5*sd(data$PC1)), (mean(data$PC1)+5*sd(data$PC1)))
-    PC2_thresh <- c((mean(data$PC2)-5*sd(data$PC2)), (mean(data$PC2)+5*sd(data$PC2)))
-    PC3_thresh <- c((mean(data$PC3)-5*sd(data$PC3)), (mean(data$PC3)+5*sd(data$PC3)))
-    PC4_thresh <- c((mean(data$PC4)-5*sd(data$PC4)), (mean(data$PC4)+5*sd(data$PC4)))
-  }
+} 
+
+## if 1000G data was used in generating the PCs, read in race file and combine with the cohort df
+if(race_1000G_file != "none"){
   
-  #regardless of whether 1000G data is present or not,
-  #add dataset label to this dataset's race categories
-  #if a label was supplied
-  if(dataset_label != "none"){
-    data$race[data$set == "current"] <- paste(dataset_label, data$race[data$set == "current"], sep = " ")
-  }
+  #read in race for 1000G
+  data_1000G <- fread(race_1000G_file, header = F)
+  names(data_1000G) <- c("FID", "IID", "race")
+  data_1000G$set <- "1000G"
   
+  #add 1000G to race values
+  data_1000G$race <- paste("1000G", data_1000G$race, sep = " ")
+  
+}
+
+## if both are present, combine, but if just 1000G is present, rename
+if(race_file != "none" && race_1000G_file != "none"){
+  data <- rbind(data[,c("FID", "IID", "race", "set")], data_1000G[,c("FID", "IID", "race", "set")])
+} else if(race_1000G_file != "none"){
+  data <- data_1000G
+  rm(data_1000G)
+}
+
+## if either is present, merge with PCs
+if(race_file != "none" || race_1000G_file != "none"){
+  
+  # merge with PCs, keeping all PC values
+  data <- merge(pcs, data, by = c("FID", "IID"), all.x = T)
+  
+  # set the NA values if there are any (which would be the case if there were no self-report race file)
+  data$set[is.na(data$set)] <- "current"
+  data$race[is.na(data$race)] <- "not reported"
+  
+  #get NHW subset 
+  # Note that this will be based on 1000G only if there are no NHW in the set or if the self-report is not present
+  data_nhw <- data[data$race %in% c("1000G EUR", "White"),]
+  
+  #set outlier thresholds based on NHW in 1000G and current dataset
+  PC1_thresh <- c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))
+  PC2_thresh <- c((mean(data_nhw$PC2)-5*sd(data_nhw$PC2)), (mean(data_nhw$PC2)+5*sd(data_nhw$PC2)))
+  PC3_thresh <- c((mean(data_nhw$PC3)-5*sd(data_nhw$PC3)), (mean(data_nhw$PC3)+5*sd(data_nhw$PC3)))
+  PC4_thresh <- c((mean(data_nhw$PC4)-5*sd(data_nhw$PC4)), (mean(data_nhw$PC4)+5*sd(data_nhw$PC4)))
+  
+  #remove NHW dataframe since it's not needed anymore
+  rm(data_nhw)
 } else {
-  #if there's no race, just use PCs
+  
+  ## if there's no race, just use PCs
   data <- pcs
   #set outlier thresholds based on whole sample
   PC1_thresh <- c((mean(data$PC1)-5*sd(data$PC1)), (mean(data$PC1)+5*sd(data$PC1)))
@@ -103,10 +113,12 @@ if(race_file != "none"){
   PC4_thresh <- c((mean(data$PC4)-5*sd(data$PC4)), (mean(data$PC4)+5*sd(data$PC4)))
 }
 
+###################### Generate plots ########################
+
 #create plots
 pdf(paste0(pc_file_stem, ".pdf"))
 
-if(race_1000G_file != "none" & race_file != "none"){
+if(race_1000G_file != "none"){
   
   #color just to see if they cluster by 1000G race
   a <- ggplot(data = data) +
@@ -156,7 +168,7 @@ if(race_file != "none"){
     c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
       geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
     print(c)
-
+    
     if(write_excl_file == "yes"){
       #get NHW and non-outliers (according to the current sample mean)
       ids_to_keep <- data[data$PC1 > PC1_thresh[1] & data$PC1 < PC1_thresh[2] &
@@ -165,7 +177,7 @@ if(race_file != "none"){
                           c("FID", "IID")]
       write.table(ids_to_keep, paste0(pc_file_stem, "_NHW_nooutliers.txt"), col.names = F, row.names = F, quote = F)
     }
-
+    
   }
 } else {
   #if no race information is available, plot everyone with lines based on whole sample
@@ -178,7 +190,7 @@ if(race_file != "none"){
   c <- ggplot(data = data, aes(x=PC3, y=PC4)) + geom_point()  +
     geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
   print(c)
-
+  
   if(write_excl_file == "yes"){
     #get non-outliers (according to the whole sample mean)
     ids_to_keep <- data[data$PC1 > PC1_thresh[1] & data$PC1 < PC1_thresh[2] &
@@ -187,7 +199,7 @@ if(race_file != "none"){
                         c("FID", "IID")]
     write.table(ids_to_keep, paste0(pc_file_stem, "_nooutliers.txt"), col.names = F, row.names = F, quote = F)
   }
-
+  
 }
 
 dev.off()
