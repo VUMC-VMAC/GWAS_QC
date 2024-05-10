@@ -92,7 +92,7 @@ if(race_file != "none" || race_1000G_file != "none"){
   
   #get NHW subset 
   # Note that this will be based on 1000G only if there are no NHW in the set or if the self-report is not present
-  data_nhw <- data[data$race %in% c("1000G EUR", "White"),]
+  data_nhw <- data[data$race %in% c("1000G EUR", "White", "EUR"),]
   
   #set outlier thresholds based on NHW in 1000G and current dataset
   PC1_thresh <- c((mean(data_nhw$PC1)-5*sd(data_nhw$PC1)), (mean(data_nhw$PC1)+5*sd(data_nhw$PC1)))
@@ -161,9 +161,9 @@ if(race_file != "none"){
   
   #plot in non-hispanic whites
   if(dataset_label != "none"){
-    data <- data[data$race == paste(dataset_label, "White", sep = " "),]
+    data <- data[data$race %in% c(paste(dataset_label, "White", sep = " "), paste(dataset_label, "EUR", sep = " ")),]
   } else {
-    data <- data[data$race == "White",]
+    data <- data[data$race %in% c("White", "EUR"),]
   }
   if(nrow(data)>0){
     a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
