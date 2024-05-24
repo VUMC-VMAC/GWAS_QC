@@ -12,7 +12,7 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, HWE filtering, and preparation for upload to the imputation server.
 
 Usage:
-SCRIPTNAME.sh -i [input_fileset] -o [output_stem] -r [race_file] -f [sex_file] -G [stem_1000G] -R [ref_file_stem] -b [input genome build] -n -c
+SCRIPTNAME.sh -i [input_fileset] -o [output_stem] -r [race_file] -f [sex_file] -R [ref_file_stem] -b [input genome build] -m [plink_memory_limit] -n -c 
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -20,13 +20,11 @@ input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam
 
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
-race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
-
-stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (ie for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
-
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
 
 input_genome_build (optional) = argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the liftOver step.
+
+plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
 -n = optional argument set to indicate not to exclude variants for not being in or not matching the reference panel; default is to exclude
 
@@ -36,15 +34,14 @@ input_genome_build (optional) = argument indicating the build of the input datas
 "
         }
 
-while getopts 'o:i:r:f:G:R:b:nch' flag; do
+while getopts 'o:i:r:f:R:b:m:nch' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
-    r) race_file="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
-    G) stem_1000G="${OPTARG}" ;;
     R) ref_file_stem="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
+    m) plink_memory_limit="${OPTARG}";;
     n) noexclude='true' ;;
     c) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
@@ -71,23 +68,6 @@ File with sex information : $sex_file
 Reference panel SNP file : $ref_file_stem
 "
 
-#print message if 1000G dataset is not specified
-if [ -z "$stem_1000G" ];
-then
-    printf "No location was specified for the 1000G data, so no PCs will be calculated including them!\n\n"
-else
-    echo $stem_1000G
-    printf "1000G data for PC calculation : ${stem_1000G}\n\n"
-fi
-
-#print message if 1000G dataset is not specified
-if [ -z "$race_file" ];
-then
-    printf "No file was supplied with self-report race information, so PCs will not be colored based on these values.\n\n"
-else
-    printf "Self-report race values will be drawn from ${race_file} in order to color PCs.\n\n"
-fi
-
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
@@ -104,6 +84,11 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
         exit 1
 fi
 
+if [ "$plink_memory_limit" ];
+then 
+    printf "Memory limit for plink calls: $plink_memory_limit \n"
+    plink_memory_limit=$( echo "--memory $plink_memory_limit" )
+fi
 
 #get file path for input
 input_path=${input_fileset%/*}
@@ -117,7 +102,7 @@ input_stem=${input_fileset##*/}
 ########## initial SNP filters ##########
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
 output=$( printf ${output_stem}_geno05_maf01 )
-plink --bfile $input_fileset --geno 0.05 --maf 0.01 --make-bed --out $output > /dev/null
+plink --bfile $input_fileset --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 # document
 ## get the number of variants dropped for initial variant filters
@@ -136,7 +121,7 @@ printf "Output file: $output \n\n"
 printf '%s\n' "Step 2: remove subjects w/ >1% missingness"
 output_last=$output
 output=${output}_mind01
-plink --bfile $output_last --mind 0.01 --make-bed --out $output > /dev/null
+plink --bfile $output_last --mind 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 # document
 ## get the number of samples removed for missingness
@@ -151,7 +136,7 @@ printf "Output file: $output \n"
 
 ########## Relatedness ##########
 printf "\nStep 3: Calculate relatedness and remove related individuals\n"
-plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness > /dev/null
+plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness $plink_memory_limit > /dev/null
 
 #print out # or related individuals at each threshold
 for pi_hat in 0.9 0.5 0.25; do
@@ -172,7 +157,7 @@ Rscript get_related_ids.R ${output}_relatedness
 # remove selected ids from the last generated genotype file set
 output_last=$output
 output=${output}_norelated
-plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output > /dev/null
+plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output $plink_memory_limit > /dev/null
 
 # document
 ## get the number of samples dropped for relatedness
@@ -189,52 +174,58 @@ printf "Output file: $output \n"
 ########## sex check ##########
 printf "\nStep 4: sex check\n"
 
-#only update sex if there is something more than missing values for sex in the provided file
-if [ "$( awk '{ print $3 }' $sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
+num_x_chr=$( awk '{ if($1 == 23) print }' ${output}.bim | wc -l )
+if [ "$num_x_chr" -gt 0 ];
 then 
-    output_last=$output
-    output=${output}_sex
-    plink --bfile $output_last --update-sex $sex_file --make-bed --out $output > /dev/null
-    printf "Updated sex from the provided file: $sex_file \n"
+    printf "$num_x_chr present to check reported sex against genotypic sex.\n"
+    #only update sex if there is something more than missing values for sex in the provided file
+    if [ "$( awk '{ print $3 }' $sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
+    then 
+	output_last=$output
+	output=${output}_sex
+	plink --bfile $output_last --update-sex $sex_file --make-bed --out $output $plink_memory_limit > /dev/null
+	printf "Updated sex from the provided file: $sex_file \n"
+    else
+	printf "No non-missing sex information in the provided file (${sex_file}). Using sex from fam file.\n"
+    fi
+    #do the check
+    plink --bfile $output --check-sex --out ${output}_checking_sex $plink_memory_limit > /dev/null
+    grep -e 'check-sex: ' ${output}_checking_sex.log 
+
+    #write mismatched sex iids in text file
+    awk '{ if($5=="PROBLEM" && $4 != 0 && $3 != 0) print $1" "$2 }' ${output}_checking_sex.sexcheck > ${output}_mismatched_sex_ids.txt
+    printf "$( wc -l < ${output}_mismatched_sex_ids.txt ) real sex mismatches (e.g. not ambiguous in the fam or indeterminate based on SNPs)\n$( awk '{ if($3 == 0) print }' ${output}_checking_sex.sexcheck | wc -l ) out of $( wc -l < ${output}.fam ) samples are missing sex.\n"
+
+    #remove individuals in text file
+    if [ $( wc -l < ${output}_mismatched_sex_ids.txt ) -gt 0 ];
+    then
+	sex_mismatch_file=${output}_mismatched_sex_ids.txt
+	output_last=$output
+	output=${output}_nomismatchedsex
+	plink --bfile $output_last --remove ${sex_mismatch_file} --make-bed --out $output $plink_memory_limit > /dev/null
+
+	# document
+	## get the number of samples which fail sex check
+	samplessex=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
+	printf "Removed $sampelssex individuals with mismatched sex.\n"
+	## get the resulting number of samples and variants
+	variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+	samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
+	printf "$samples samples\n$variants variants\n"
+	printf "Output file: $output \n"
+    else
+	printf "Removed 0 individuals with mismatched sex.\n"
+	printf "$samples samples\n$variants variants\n"
+    fi
 else
-    printf "No non-missing sex information in the provided file (${sex_file}). Using sex from fam file.\n"
-fi
-#do the check
-plink --bfile $output --check-sex --out ${output}_checking_sex > /dev/null
-grep -e 'check-sex: ' ${output}_checking_sex.log 
-
-#write mismatched sex iids in text file
-awk '{ if($5=="PROBLEM" && $4 != 0 && $3 != 0) print $1" "$2 }' ${output}_checking_sex.sexcheck > ${output}_mismatched_sex_ids.txt
-printf "$( wc -l < ${output}_mismatched_sex_ids.txt ) real sex mismatches (e.g. not ambiguous in the fam or indeterminate based on SNPs)
-$( awk '{ if($3 == 0) print }' ${output}_checking_sex.sexcheck | wc -l ) out of $( wc -l < ${output}.fam ) samples are missing sex.\n"
-
-#remove individuals in text file
-if [ $( wc -l < ${output}_mismatched_sex_ids.txt ) -gt 0 ];
-then
-    sex_mismatch_file=${output}_mismatched_sex_ids.txt
-    output_last=$output
-    output=${output}_nomismatchedsex
-    plink --bfile $output_last --remove ${sex_mismatch_file} --make-bed --out $output > /dev/null
-
-    # document
-    ## get the number of samples which fail sex check
-    samplessex=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
-    printf "Removed $sampelssex individuals with mismatched sex.\n"
-    ## get the resulting number of samples and variants
-    variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
-    samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
-    printf "$samples samples\n$variants variants\n"
-    printf "Output file: $output \n"
-else
-    printf "Removed 0 individuals with mismatched sex.\n"
-    printf "$samples samples\n$variants variants\n"
+    printf "No X chromosomes present to compare against self-report sex. Skipping sex check.\n"
 fi
 
 ########## restrict to autosomes ##########
 printf "\nStep 5 : restrict to autosomes\n"
 output_last=$output
 output=${output}_keep_autosomes
-plink --bfile $output_last --chr 1-22 --make-bed --out $output > /dev/null
+plink --bfile $output_last --chr 1-22 --make-bed --out $output $plink_memory_limit > /dev/null
 
 #Get numbers of removed variants
 # total
@@ -260,13 +251,13 @@ printf "Output file: $output \n"
 printf "\nStep 6: Pruning genotypes and running heterozygosity check.\n"
 
 # prune and set phenotypes to 1
-plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
-plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
+plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune $plink_memory_limit > /dev/null
+plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned $plink_memory_limit > /dev/null
 rm ${output}_prune.*
 printf "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning.\n"
 
 # heterozygosity check 
-plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck > /dev/null
+plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck $plink_memory_limit > /dev/null
 # plot and check for outliers
 Rscript plot_het_check_outliers.R ${output}_pruned_hetcheck
 
@@ -275,7 +266,7 @@ if [ -f "${output}_pruned_hetcheck_outliers.txt" ];
 then
     output_last=${output}
     output=${output}_nohetout
-    plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
+    plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} $plink_memory_limit > /dev/null
 
     # document
     ## get the number of samples which fail sex check
@@ -294,7 +285,7 @@ fi
 ########## HWE filter ##########
 
 printf "\nStep 7: Running the Hardy-Weinberg Equilibrium SNP filter \n"  
-plink --bfile $output --hwe 0.000001 --make-bed --out ${output}_hwe6 > /dev/null
+plink --bfile $output --hwe 0.000001 --make-bed --out ${output}_hwe6 $plink_memory_limit > /dev/null
 output=${output}_hwe6
 
 # document
@@ -318,7 +309,7 @@ awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  &
 #remove them
 output_last=$output
 output=${output}_nopal
-plink --bfile $output_last --exclude ${output_path}/palindromic_snps.txt --make-bed --out $output > /dev/null
+plink --bfile $output_last --exclude ${output_path}/palindromic_snps.txt --make-bed --out $output $plink_memory_limit > /dev/null
 printf "Removed $( wc -l < ${output_path}/palindromic_snps.txt ) palindromic variants.\n"
 varspalindromic=$( wc -l < ${output_path}/palindromic_snps.txt )
 printf "Output file: $output \n"
@@ -356,10 +347,10 @@ then
     printf "Removing $varsfaillift variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | grep -v '^$' | sort -u | wc -l ) not present in b38).\n"
 
     #drop 
-    plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs > /dev/null
+    plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs $plink_memory_limit > /dev/null
     #update the chr and BP positions for remaining
-    plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr > /dev/null
-    plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted > /dev/null
+    plink --bfile ${output}_noprobSNPs --update-chr ${output}_lifted.txt 1 4 --make-bed --out ${output}_noprobSNPs_chr $plink_memory_limit > /dev/null
+    plink --bfile ${output}_noprobSNPs_chr --update-map ${output}_lifted.txt 3 4 --make-bed --out ${output}_noprobSNPs_chr_bplifted $plink_memory_limit > /dev/null
     output=${output}_noprobSNPs_chr_bplifted
 fi
 
@@ -372,7 +363,7 @@ if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
 then
     varssamepos=$( wc -l < ${output}_samepos_vars.txt )
     printf "Removing $varssamepos same-position variants.\n"
-    plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
+    plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos $plink_memory_limit > /dev/null
     output=${output}_nosamepos
     grep ' people pass filters and QC' $output.log
     printf "Output file: $output\n"
@@ -385,7 +376,7 @@ fi
 printf "\nStep 11: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #make set with short name and freq file
-plink --bfile ${output} --allow-no-sex --freq --make-bed --out ${output}_freq > /dev/null
+plink --bfile ${output} --allow-no-sex --freq --make-bed --out ${output}_freq $plink_memory_limit > /dev/null
 output=${output}_freq
 
 #run the imputation checking script
@@ -422,7 +413,7 @@ else
 fi
 
 # document (format for the workflow)
-printf "(Formatted for the formal documentation)\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
+printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
 ## get the resulting number of samples and variants
 variants=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $1;}' )
 samples=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $4;}' )
