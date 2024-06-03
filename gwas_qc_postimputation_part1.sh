@@ -250,47 +250,51 @@ printf "After merging in genotypes, there are $( grep "pass filters and QC" ${ou
 printf "Output file: $output"
 
 # Calculate SNPWeights
-printf "\nStep 5: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights.\n"
+printf "\nStep 5: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights and removing non-ATGC variants.\n"
 ## Filter down to the variants in 1000G
 plink --bfile ${output} --extract ${snpweights_file}_snp.txt --make-bed --out ${output}_overlap > /dev/null 
 grep -e 'pass filters and QC' ${output}.log
 
+## remove non-ATGC variants
+plink --bfile ${output}_overlap --snps-only 'just-acgt' --make-bed --out ${output}_overlap_acgt > /dev/null
+grep -e 'pass filters and QC' ${output}.log
+
 ## Prune 
 printf "Pruning...\n"
-plink --bfile ${output}_overlap --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_overlap_prune > /dev/null
-plink --bfile ${output}_overlap --output-missing-phenotype 1 --extract ${output}_overlap_prune.prune.in --make-bed --out ${output}_overlap_pruned > /dev/null
-rm ${output}_overlap_prune.*
-printf "$( wc -l < ${output}_overlap_pruned.bim ) variants out of $( wc -l < ${output}_overlap.bim ) left after pruning.\n"
+plink --bfile ${output}_overlap_acgt --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_overlap_acgt_prune > /dev/null
+plink --bfile ${output}_overlap_acgt --output-missing-phenotype 1 --extract ${output}_overlap_acgt_prune.prune.in --make-bed --out ${output}_overlap_acgt_pruned > /dev/null
+rm ${output}_overlap_acgt_prune.*
+printf "$( wc -l < ${output}_overlap_acgt_pruned.bim ) variants out of $( wc -l < ${output}_overlap_acgt.bim ) left after pruning.\n"
 
 ## Convert into EIG format
-printf "genotypename: ${output}_overlap_pruned.bed
-snpname: ${output}_overlap_pruned.bim
-indivname: ${output}_overlap_pruned.fam
+printf "genotypename: ${output}_overlap_acgt_pruned.bed
+snpname: ${output}_overlap_acgt_pruned.bim
+indivname: ${output}_overlap_acgt_pruned.fam
 outputformat: EIGENSTRAT
-genotypeoutname: ${output}_overlap_pruned.eigenstratgeno
-snpoutname: ${output}_overlap_pruned.snp
-indivoutname: ${output}_overlap_pruned.ind
+genotypeoutname: ${output}_overlap_acgt_pruned.eigenstratgeno
+snpoutname: ${output}_overlap_acgt_pruned.snp
+indivoutname: ${output}_overlap_acgt_pruned.ind
 familynames: YES
-" > ${output}_overlap_pruned_convert_to_EIG.par
+" > ${output}_overlap_acgt_pruned_convert_to_EIG.par
 
-convertf -p ${output}_overlap_pruned_convert_to_EIG.par
+convertf -p ${output}_overlap_acgt_pruned_convert_to_EIG.par
 
 ## run ancestry inference
-printf "geno: ${output}_overlap_pruned.eigenstratgeno
-snp: ${output}_overlap_pruned.snp
-ind: ${output}_overlap_pruned.ind
+printf "geno: ${output}_overlap_acgt_pruned.eigenstratgeno
+snp: ${output}_overlap_acgt_pruned.snp
+ind: ${output}_overlap_acgt_pruned.ind
 snpwt: ${snpweights_file}
-predpcoutput: ${output}_overlap_pruned.out
-" > ${output}_overlap_pruned_infer_ancestry.par 
+predpcoutput: ${output}_overlap_acgt_pruned.out
+" > ${output}_overlap_acgt_pruned_infer_ancestry.par 
 
-python /SNPweights2.1/inferancestry.py --par ${output}_overlap_pruned_infer_ancestry.par
+python /SNPweights2.1/inferancestry.py --par ${output}_overlap_acgt_pruned_infer_ancestry.par
 
 # Separate samples into ancestral categories based on standard thresholds
-Rscript assign_ancestral_categories.R ${output}_overlap_pruned.out
+Rscript assign_ancestral_categories.R ${output}_overlap_acgt_pruned.out
 printf "Ancestry estimates have been calculated and standard thresholds have been applied. Check the resulting files to determine which subsets have enough samples to carry forward.\n"
 
 # ## generate a file with ancestral group categories
-# Rscript plot_predictedPCs.R ${output}_overlap_pruned_infer_ancestry.par
+# Rscript plot_predictedPCs.R ${output}_overlap_acgt_pruned_infer_ancestry.par
 
 if [ "$skip_cleanup" = 'true' ];
 then 
