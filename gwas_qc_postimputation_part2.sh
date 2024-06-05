@@ -10,14 +10,18 @@ display_usage() {
 This script will conclude the post-imputation process, performing the MAF and HWE filters, checking sample heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
-SCRIPTNAME.sh -o [input_file_stem] -r [race_file] -c -p
+SCRIPTNAME.sh -o [input_file_stem] -r [race_file] -c -p -m [plink_memory_flag]
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
 race_file = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots with NO header. Values in this file will typically be the SNPWeights-derived ancestral groups. 
 
 -c will skip the clean-up at the end of the script which removes intermediate *.bed files.
+
 -p will skip the PC calculation at the end (only should be done if this set will be merged with other sets in the same cohort).
+
+plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
+
 -h will display this message
 "
         }
@@ -27,11 +31,12 @@ do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
 skip_pccalc='false'
-while getopts 'o:r:cph' flag; do
+while getopts 'o:r:cpm:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     r) race_file="${OPTARG}" ;;
     c) skip_cleanup='true' ;;
+    m) plink_memory_limit="${OPTARG}";;
     p) skip_pccalc='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
@@ -54,23 +59,29 @@ Output file path and stem for cleaned imputed files : $output_stem
 Race information file : $race_file
 "
 
+if [ "$plink_memory_limit" ];
+then 
+    printf "Memory limit for plink calls: $memory_limit \n"
+    plink_memory_limit=$( echo "--memory $plink_memory_limit" )
+fi
+
 printf "\nStep 1: Applying Hardy-Weinberg equilibrium and MAF filters.\n"
 
 # SNP filters
 output=${output_stem}_hwe6_maf01
-plink --bfile ${output_stem} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_stem} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} $plink_memory_limit > /dev/null
 grep -e "removed due to minor allele threshold" -e "hwe: " -e 'pass filters and QC' ${output}.log
 printf "Output file: $output"
 
 # prune for heterozygosity check
 printf "\n\nStep 2: Pruning and running heterozygosity check\n"
-plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune > /dev/null
-plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned > /dev/null
+plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune $plink_memory_limit > /dev/null
+plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned $plink_memory_limit > /dev/null
 rm ${output}_prune.*
 printf "$( wc -l < ${output}_pruned.bim ) variants out of $( wc -l < ${output}.bim ) left after pruning.\n"
 
 ##### heterozygosity check #####
-plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck > /dev/null
+plink --bfile ${output}_pruned --het --out ${output}_pruned_hetcheck $plink_memory_limit > /dev/null
 #plot and check for outliers
 Rscript plot_het_check_outliers.R ${output}_pruned_hetcheck
 
@@ -79,7 +90,7 @@ if [ -f "${output}_pruned_hetcheck_outliers.txt" ];
 then
     output_last=${output}
     output=${output}_nohetout
-    plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} > /dev/null
+    plink --bfile $output_last --remove ${output}_pruned_hetcheck_outliers.txt --make-bed --out ${output} $plink_memory_limit > /dev/null
     grep -e ' people pass filters and QC' ${output}.log
     printf "Output file: $output \n"
 fi
@@ -89,12 +100,15 @@ if [ "$skip_pccalc" = 'false' ];
 then 
     printf "\nStep 3: Calculating post-imputation PCs\n\n"
 
+    # edit the memory limit variable for the purposes of supplying to the PC calculation script
+    if [ "$plink_memory_limit" ]; then plink_memory_limit=$( echo $plink_memory_limit | sed 's/-memory/m/' ); fi 
+
     # Calculate PCs, coloring based on ancestry categories if present
     if [ ! -z "$race_file" ]; 
     then
-	sh calc_plot_PCs.sh -i $output -r $race_file
+	sh calc_plot_PCs.sh -i $output -r $race_file $plink_memory_limit
     else
-	sh calc_plot_PCs.sh -i $output 
+	sh calc_plot_PCs.sh -i $output $plink_memory_limit
     fi
 
     printf "\nPlease check PC plots for outliers, remove if present, and recalculate PCs. If there are no outliers to remove, GWAS QC for this dataset is (probably) complete!\n"
