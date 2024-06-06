@@ -214,6 +214,6 @@ fi
 
 if [ "$exclusion_file" = "yes" ];
 then
-    printf "A file with ids for NHW who were not PC outliers (>5sd from the mean) is written out for your convenience if all outliers should be removed: ${pcainput}_pruned_nooutliers.txt\n"
+    printf "A file with ids for samples who were not PC outliers (>5sd from the mean) is written out for your convenience if all outliers should be removed: ${pcainput}_pruned_nooutliers.txt\n"
 fi
 

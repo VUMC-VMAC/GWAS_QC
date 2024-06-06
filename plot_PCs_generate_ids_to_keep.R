@@ -157,33 +157,15 @@ if(race_file != "none"){
   print(b)
   c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
     geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
-  print(c)
-  
-  #plot in non-hispanic whites
-  if(dataset_label != "none"){
-    data <- data[data$race %in% c(paste(dataset_label, "White", sep = " "), paste(dataset_label, "EUR", sep = " ")),]
-  } else {
-    data <- data[data$race %in% c("White", "EUR"),]
-  }
-  if(nrow(data)>0){
-    a <- ggplot(data = data, aes(x=PC1, y=PC2, color=race)) + geom_point()  +
-      geom_vline(xintercept = PC1_thresh) + geom_hline(yintercept = PC2_thresh)
-    print(a)
-    b <- ggplot(data = data, aes(x=PC2, y=PC3, color=race)) + geom_point()  +
-      geom_vline(xintercept = PC2_thresh) + geom_hline(yintercept = PC3_thresh)
-    print(b)
-    c <- ggplot(data = data, aes(x=PC3, y=PC4, color=race)) + geom_point()  +
-      geom_vline(xintercept = PC3_thresh) + geom_hline(yintercept = PC4_thresh)
-    print(c)
-    
-    if(write_excl_file == "yes"){
-      #get NHW and non-outliers (according to the current sample mean)
-      ids_to_keep <- data[data$PC1 > PC1_thresh[1] & data$PC1 < PC1_thresh[2] &
+  print(c) 
+   
+  if(write_excl_file == "yes"){
+    #get NHW and non-outliers (according to the current sample mean)
+    ids_to_keep <- data[data$PC1 > PC1_thresh[1] & data$PC1 < PC1_thresh[2] &
                             data$PC2 > PC2_thresh[1] & data$PC2 < PC2_thresh[2] &
                             data$PC3 > PC3_thresh[1] & data$PC3 < PC3_thresh[2],
                           c("FID", "IID")]
-      write.table(ids_to_keep, paste0(pc_file_stem, "_NHW_nooutliers.txt"), col.names = F, row.names = F, quote = F)
-    }
+    write.table(ids_to_keep, paste0(pc_file_stem, "_nooutliers.txt"), col.names = F, row.names = F, quote = F)
     
   }
 } else {
