@@ -307,7 +307,7 @@ fi
 plinkset_x_out=${output}
 # confirm sex is updated
 n_sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | wc -l)
-sex=($(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') )
+sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}')
 
 if [ $n_sex -ne 2 ];
 then
@@ -392,7 +392,7 @@ printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_
 #### STEP 4 ####
 # confirm sex is updated
 n_sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | wc -l)
-sex=($(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') )
+sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') 
 if [ $n_sex -ne 2 ];
 then
 printf "\n ERROR: sex not proper/updated in fam:
