@@ -114,7 +114,7 @@ To run the first step in the SNPWeights post-imputation step, run something like
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	    --bind /data/h_vmac/GWAS_QC/1000G_data/:/data/ \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    sh gwas_qc_postimputation_snpweights.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
+	    sh gwas_qc_postimputation_part1.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
 	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
 	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
 	    -g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \

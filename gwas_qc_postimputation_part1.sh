@@ -64,7 +64,7 @@ then
 fi
 
 #print out inputs
-printf "GWAS QC Post-imputation Script
+printf "GWAS QC Post-imputation Script Part 1
 
 Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : $imputation_results_folder

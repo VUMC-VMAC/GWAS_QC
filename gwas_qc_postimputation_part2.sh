@@ -14,7 +14,7 @@ SCRIPTNAME.sh -o [input_file_stem] -r [race_file] -c -p -m [plink_memory_flag]
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
-race_file = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots with NO header. Values in this file will typically be the SNPWeights-derived ancestral groups. 
+race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots with NO header. Values in this file will typically be the SNPWeights-derived ancestral groups. 
 
 -c will skip the clean-up at the end of the script which removes intermediate *.bed files.
 
@@ -56,12 +56,16 @@ fi
 printf "GWAS QC Post-imputation Script, part 2
 
 Output file path and stem for cleaned imputed files : $output_stem
-Race information file : $race_file
 "
+
+if [ "$race_file" ]; 
+then
+    printf "Race information file : $race_file\n"
+fi
 
 if [ "$plink_memory_limit" ];
 then 
-    printf "Memory limit for plink calls: $memory_limit \n"
+    printf "Memory limit for plink calls: $plink_memory_limit \n"
     plink_memory_limit=$( echo "--memory $plink_memory_limit" )
 fi
 
