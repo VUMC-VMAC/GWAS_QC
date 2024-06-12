@@ -7,10 +7,10 @@ set -e
 display_usage() {
     printf "GWAS QC post-imputation script, part 1
 
-This script will unzip the imputation results (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform the first steps of standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF. Then, ancestry and PCs will be estimated using pre-calculated weights. The output of this script will include filtered genotypes, plots of predicted PCs, and a file including ancestral group estimations. Please check these outputs, make any filtering decisions necessary and proceed with the part 2 post-imputation script.
+This script will unzip the imputation results (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform the first steps of standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF. Then, ancestry and PCs will be estimated using pre-calculated weights. The output of this script will include filtered genotypes, plots of predicted PCs, and a file including ancestral group estimations. Please check these outputs and proceed with the part 2 post-imputation script.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -w [snpweights_file] -z -x -m [plink_memory_flag] -c
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -f [sex_file] -s [snp_names_file] -w [snpweights_file] -z -x -m [plink_memory_flag] -c
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -19,8 +19,6 @@ imputation_results_folder = the folder to which the imputation results have been
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
 snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
-
-preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
 
 snpweights_file = the full path and name of the file containing pre-calculated weights from which to calculate ancestral estimates; note that there must be a corresponding file with the same stem ending in *_snps.txt which contains a list of variants to subset the current set to before calculating weights
 
@@ -37,14 +35,13 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:i:f:s:g:w:zxcm:h' flag; do
+while getopts 'o:i:f:s:w:zxcm:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;
     z) do_unzip='true' ;;
-    g) preimputation_geno="${OPTARG}" ;;
     w) snpweights_file="${OPTARG}" ;;
     x) skip_first_filters='true' ;;
     c) skip_cleanup='true' ;;
@@ -55,8 +52,10 @@ while getopts 'o:i:f:s:g:w:zxcm:h' flag; do
   esac
 done
 
-#check to make sure necessary arguments are present                                                                                              
-if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$snp_names_file" ] || [ -z "$preimputation_geno" ] || [ -z "$snpweights_file" ];
+########################################## Input validation ##################################################
+
+#check to make sure necessary arguments are present
+if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$snp_names_file" ] || [ -z "$snpweights_file" ];
 then
     printf "Error: Necessary arguments not present!\n\n"
     display_usage
@@ -74,13 +73,6 @@ Stem for files for SNP name conversion : $snp_names_file
 if [ "$do_unzip" = 'false' ];
 then 
     printf "The -z was not specified so imputation results must already be unzipped.\n\n"
-fi
-
-#validate the genotyped files
-if [ ! -f "${preimputation_geno}.fam" ];
-then
-    printf "Cannot see the preimputation genotype files ($preimputation_geno)! Please check the argument supplied to -g and try again!\n"
-    exit 1
 fi
 
 #validate the sex file
@@ -115,7 +107,7 @@ fi
 output_folder=${output_stem%/*}
 
 
-################# Start the post-imputation QC ######################
+############################## Step 1: Unzipping, filtering, and merging imputation results (R2 and multi-allelic) #############################
 
 
 if [ $skip_first_filters = 'false' ];
@@ -203,6 +195,8 @@ else
     printf "Skipping the unzipping, conversion, and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
 fi
 
+################################################# Step 2: Update SNP names and add sex to fam ##########################################
+
 #### Updating person ids and sex ####
 #update person ids using the sex file
 output_last=$output
@@ -217,54 +211,10 @@ output_last=$output
 output=${output}_sex
 plink --bfile ${output_last} --update-sex ${sex_file} --make-bed --out ${output} $plink_memory_limit > /dev/null
 
-###### merge back in genotypes #####
-
-printf "\nStep 4: Merging back in the original genotypes.\n"
-
-# make file with all the genotyped variant ids -- this will be problematic if we don't have separate folders for NHW/all-races
-awk '{ print $2 }' ${preimputation_geno}.bim > ${output_folder}/genotyped_variants.txt
-
-# remove variants for which there are genotypes from the bim file
-output_last=$output
-output=${output}_nogeno
-plink --bfile ${output_last} --exclude ${output_folder}/genotyped_variants.txt --make-bed --out $output $plink_memory_limit > /dev/null
-printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
-
-# merge the genotyped and imputed data
-plink --bfile ${output} --bmerge ${preimputation_geno} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
-
-#check for complete sample overlap in the log and throw an error if there is not complete overlap
-new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
-if [ "$new_samples" != 0 ];
-then 
-    printf "There is incomplete overlap between the genotype and imputed fam files! Please ensure you input the correct genotypes and resolve any issues. (Hint: Check how many people whose ids were updated above and compare with the total. If fewer, then supply a race/sex file with all samples in the imputed files.)\n"
-    exit 1
-fi
-
-#check for same position warnings
-sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
-if [ ! -z "$sameposwarnings" ] ;
-then 
-    printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
-    grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
-    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 $plink_memory_limit > /dev/null
-    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
-    plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
-    
-    #check for more warnings
-    sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
-    if [ ! -z "$sameposwarnings" ] ;
-    then
-	printf "\nGetting more same position warnings! Please check and handle manually!\n"
-    fi
-fi
-#update output variable
-output=${output}_merged
-printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
-printf "Output file: $output"
+################################################# Step 3: Apply SNPWeights to determine genetic ancestry ##########################################
 
 # Calculate SNPWeights
-printf "\nStep 5: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights and removing non-ATGC variants.\n"
+printf "\nStep 4: Calculate inferred ancestry.\nFirst, subsetting to overlap with pre-calculated weights and removing non-ATGC variants.\n"
 ## Filter down to the variants in 1000G
 plink --bfile ${output} --extract ${snpweights_file}_snp.txt --make-bed --out ${output}_overlap $plink_memory_limit > /dev/null 
 grep -e 'pass filters and QC' ${output}.log
@@ -307,13 +257,16 @@ python /SNPweights2.1/inferancestry.py --par ${output}_overlap_acgt_pruned_infer
 Rscript assign_ancestral_categories.R ${output}_overlap_acgt_pruned.out
 printf "Ancestry estimates have been calculated and standard thresholds have been applied. Check the resulting files to determine which subsets have enough samples to carry forward.\n"
 
-# ## generate a file with ancestral group categories
-# Rscript plot_predictedPCs.R ${output}_overlap_acgt_pruned_infer_ancestry.par
+# determine which need to be carried forward (only those which have more than 10 samples
+printf "Here are the groups with enough samples to be carried forward in QC:\n"
+wc -l ${output}*_keep.txt | sed -e '$d' -e "s/${output}_overlap_acgt_pruned_//g" -e 's/_keep.txt//g' | awk '$1>10{ print }' | tee ${output}_ancestral_groups.txt
+
+################################################# Cleanup ##########################################
 
 if [ "$skip_cleanup" = 'true' ];
 then 
     #do some clean-up
-    printf "PC calculation complete. Doing some cleanup...\n"
+    printf "Doing some cleanup...\n"
     files_to_remove=$( find ${output_stem}*.bed | grep -v "${output}.bed" )
     rm $files_to_remove
 else
