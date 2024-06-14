@@ -40,7 +40,7 @@ while getopts 'o:g:r:l:cpm:h' flag; do
     o) output_stem="${OPTARG}" ;;
     g) preimputation_geno="${OPTARG}" ;;
     r) sample_ids="${OPTARG}" ;;
-    l) subset_label="${OPTARG}"
+    l) subset_label="${OPTARG}" ;;
     c) skip_cleanup='true' ;;
     m) plink_memory_limit="${OPTARG}";;
     p) skip_pccalc='true' ;;
@@ -82,6 +82,9 @@ then
     plink_memory_limit=$( echo "--memory $plink_memory_limit" )
 fi
 
+# get output folder
+output_folder=${output_stem%/*}
+
 ################################## Step 1: Merge in pre-imputation genotypes #################################
 
 printf "\nStep 1: Subset imputed and genotyped data to the samples in the current subset, filter for variant missingness, and merge imputed and genotyped data.\n"
@@ -90,14 +93,17 @@ printf "Subsetting imputed data and filtering variants for missingness...\n"
 # Subset the imputed file
 output=${output_stem}_${subset_label}_geno01
 plink --bfile $output_stem --keep $sample_ids --geno 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
-grep "people remaining" ${output}.log
+samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+printf "$samples and $variants remain in the imputed data.\n"
 
 printf "Subsetting genotyped data and filtering variants for missingness...\n"
 # Subset the genotyped file
 geno_output=${preimputation_geno}_${subset_label}_geno01
 plink --bfile $preimputation_geno --keep $sample_ids --geno 0.01 --make-bed --out $geno_output $plink_memory_limit > /dev/null
-grep "people remaining" ${geno_output}.log
-
+samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+printf "$samples and $variants remain in the genotyped data.\n"
 
 printf "Removing genotyped variants from imputed file...\n"
 # make file with all the genotyped variant ids
@@ -127,7 +133,7 @@ then
     printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 $plink_memory_limit > /dev/null
-    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
+    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants at the same position in genotyped and imputed data. These variants were removed from the imputation results.\n"
     plink --bfile ${output}2 --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
     
     #check for more warnings
@@ -139,8 +145,7 @@ then
 fi
 #update output variable
 output=${output}_merged
-printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
-printf "Output file: $output"
+printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\nOutput file: $output\n"
 
 ########################################## Step 2: apply SNP filters ##################################################
 
@@ -196,7 +201,7 @@ fi
 
 ########################################## Cleanup (optional) ##################################################
 
-if [ "$skip_cleanup" = 'true' ];
+if [ "$skip_cleanup" = 'false' ];
 then 
     #do some clean-up
     printf "Doing some cleanup...\n"
