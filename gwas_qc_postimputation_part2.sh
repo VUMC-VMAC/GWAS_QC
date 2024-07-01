@@ -102,7 +102,7 @@ printf "Subsetting imputed data samples in this set and filtering variants for m
 # Subset the imputed file
 output=${output_stem}_${subset_label}_geno01
 plink --bfile $output_stem --keep $sample_ids --geno 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
-geno=$( grep "variants removed" VMAP2_imputed_IDs_sex_EUR_geno01.log | awk '{ print $1 }' )
+geno=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
 ## report the number of samples and variants at this step
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
@@ -132,7 +132,7 @@ printf "$remaining_var variants remaining after removing genotyped variants from
 # merge the genotyped and imputed data
 plink --bfile ${output} --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
 ## calculate the number of genotyped (but not imputed) variants added
-merged_vars=$( grep "pass filters" VMAP2_imputed_IDs_sex_EUR_geno01_nogeno_merged.log | awk '{ print $1 }' )
+merged_vars=$( grep "pass filters" ${output}_merged.log | awk '{ print $1 }' )
 geno_only=$(( $merged_var - $startvar ))
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
@@ -182,7 +182,7 @@ samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
 printf "Output file: $output\n"
 
 ### log the variant filters 
-printf "\nRemoved $geno SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01.\n"
+printf '%s\n' "Removed $geno SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01."
 printf "$samples samples
 $variants variants\n"
 
