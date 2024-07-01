@@ -84,6 +84,8 @@ fi
 
 # get output folder
 output_folder=${output_stem%/*}
+# get the stem of genotype files in case it is in another folder
+geno_stem=${preimputation_geno##*/}
 
 ################################## Step 1: Merge in pre-imputation genotypes #################################
 
@@ -95,15 +97,15 @@ output=${output_stem}_${subset_label}_geno01
 plink --bfile $output_stem --keep $sample_ids --geno 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-printf "$samples and $variants remain in the imputed data.\n"
+printf "$samples samples and $variants variants remain in the imputed data.\n"
 
 printf "Subsetting genotyped data and filtering variants for missingness...\n"
 # Subset the genotyped file
-geno_output=${preimputation_geno}_${subset_label}_geno01
+geno_output=${output_folder}/${geno_stem}_${subset_label}_geno01
 plink --bfile $preimputation_geno --keep $sample_ids --geno 0.01 --make-bed --out $geno_output $plink_memory_limit > /dev/null
-samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
-variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-printf "$samples and $variants remain in the genotyped data.\n"
+samples=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $4 }' )
+variants=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $1 }' )
+printf "$samples samples and $variants variants remain in the genotyped data.\n"
 
 printf "Removing genotyped variants from imputed file...\n"
 # make file with all the genotyped variant ids
@@ -133,7 +135,8 @@ then
     printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 $plink_memory_limit > /dev/null
-    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants at the same position in genotyped and imputed data. These variants were removed from the imputation results.\n"
+    removed_var=$(( $( wc -l < ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt )/2 ))
+    printf "${removed_var} variants at the same position in genotyped and imputed data. These variants were removed from the imputation results.\n"
     plink --bfile ${output}2 --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
     
     #check for more warnings
@@ -152,8 +155,9 @@ printf "After merging in genotypes, there are $( grep "pass filters and QC" ${ou
 printf "\nStep 2: Applying Hardy-Weinberg equilibrium and MAF filters.\n"
 
 # SNP filters
-output=${output_stem}_hwe6_maf01
-plink --bfile ${output_stem} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} $plink_memory_limit > /dev/null
+output_last=${output}
+output=${output}_hwe6_maf01
+plink --bfile ${output_last} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} $plink_memory_limit > /dev/null
 grep -e "removed due to minor allele threshold" -e "hwe: " -e 'pass filters and QC' ${output}.log
 printf "Output file: $output"
 
