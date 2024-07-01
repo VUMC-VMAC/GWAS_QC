@@ -89,12 +89,21 @@ geno_stem=${preimputation_geno##*/}
 
 ################################## Step 1: Merge in pre-imputation genotypes #################################
 
+# get the starting numbers
+samples=$( grep "pass filters and QC" ${output_stem}.log | awk '{ print $4 }' )
+variants=$( grep "pass filters and QC" ${output_stem}.log | awk '{ print $1 }' )
+printf "Starting sample and variant numbers:
+$samples samples
+$variants variants\n"
+
 printf "\nStep 1: Subset imputed and genotyped data to the samples in the current subset, filter for variant missingness, and merge imputed and genotyped data.\n"
 
-printf "Subsetting imputed data and filtering variants for missingness...\n"
+printf "Subsetting imputed data samples in this set and filtering variants for missingness...\n"
 # Subset the imputed file
 output=${output_stem}_${subset_label}_geno01
 plink --bfile $output_stem --keep $sample_ids --geno 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
+geno=$( grep "variants removed" VMAP2_imputed_IDs_sex_EUR_geno01.log | awk '{ print $1 }' )
+## report the number of samples and variants at this step
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
 printf "$samples samples and $variants variants remain in the imputed data.\n"
@@ -115,10 +124,16 @@ awk '{ print $2 }' ${geno_output}.bim > ${output_folder}/${subset_label}_genotyp
 output_last=$output
 output=${output}_nogeno
 plink --bfile ${output_last} --exclude ${output_folder}/${subset_label}_genotyped_variants.txt --make-bed --out $output $plink_memory_limit > /dev/null
-printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
+startvar=$( grep "variants loaded from" ${output}.log | awk '{ print $1 }')
+remaining_var=$( grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) 
+imputed_geno=$(( $startvar - $remaining_var ))
+printf "$remaining_var variants remaining after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
 plink --bfile ${output} --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
+## calculate the number of genotyped (but not imputed) variants added
+merged_vars=$( grep "pass filters" VMAP2_imputed_IDs_sex_EUR_geno01_nogeno_merged.log | awk '{ print $1 }' )
+geno_only=$(( $merged_var - $startvar ))
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
 new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
@@ -135,10 +150,12 @@ then
     printf "Getting same position warnings. Removing those variants from the imputed dataset and re-attempting merge.\n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 $plink_memory_limit > /dev/null
-    removed_var=$(( $( wc -l < ${output_folder}/${subset_label}_genotyped_variants_sameposwarnings.txt )/2 ))
+    startvar=$( grep "variants loaded from" ${output}2.log | awk '{ print $1 }')
+    samepos=$( grep "variants remaining" ${output}2.log | awk '{ print $2 }' )
+    removed_var=$(( $startvar - $samepos ))
     printf "${removed_var} variants at the same position in genotyped and imputed data. These variants were removed from the imputation results.\n"
     plink --bfile ${output}2 --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
-    
+
     #check for more warnings
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
     if [ ! -z "$sameposwarnings" ] ;
@@ -158,8 +175,16 @@ printf "\nStep 2: Applying Hardy-Weinberg equilibrium and MAF filters.\n"
 output_last=${output}
 output=${output}_hwe6_maf01
 plink --bfile ${output_last} --hwe 0.000001 --maf 0.01 --make-bed --out ${output} $plink_memory_limit > /dev/null
-grep -e "removed due to minor allele threshold" -e "hwe: " -e 'pass filters and QC' ${output}.log
-printf "Output file: $output"
+hwe=$(  grep "removed due to Hardy-Weinberg exact test" ${output}.log | awk '{print $2;}' )
+maf=$( grep "removed due to minor allele threshold(s)" ${output}.log | awk '{print $1;}' )
+variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
+printf "Output file: $output\n"
+
+### log the variant filters 
+printf "\nRemoved $geno SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01.\n"
+printf "$samples samples
+$variants variants\n"
 
 ########################################## Step 3: heterozygosity check ##################################################
 
