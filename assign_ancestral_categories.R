@@ -21,7 +21,7 @@ anc$AFR_EUR_AMR <- anc$AFR + anc$EUR + anc$AMR
 anc$European <- ifelse(anc$EUR >= 0.75, 1, 0)
 anc$AA <- ifelse(anc$AFR_EUR >= 0.80 & anc$European == 0, 1, 0)
 anc$Lat_Hisp <- ifelse(anc$AMR_EUR >= 0.80 & anc$AFR <= 0.10 & anc$European == 0, 1, 0)
-anc$CaribHisp <- ifelse(anc$AFR_EUR_AMR >= 0.85 & anc$AA <= 0.3 & anc$Lat_Hisp == 0 & anc$AA == 0 & anc$European == 0, 1, 0)
+anc$CaribHisp <- ifelse(anc$AFR_EUR_AMR >= 0.85 & anc$AFR <= 0.4 & anc$Lat_Hisp == 0 & anc$AA == 0 & anc$European == 0, 1, 0)
 
 # make one ancestry column
 anc$Ancestry <- "Admixed"
