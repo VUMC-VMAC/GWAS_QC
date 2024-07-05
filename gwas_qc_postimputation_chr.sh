@@ -40,32 +40,7 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 -z indicates that the imputation results will need to be unzipped. All *.zip files in imputation_results_folder will be unzipped with password provided in pass.txt
 -x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
 -d will skip the clean-up at the end of the script which removes intermediate *.bed files.
--h will display this message
-
-
-Brief summary:
-Step1: unzipping the imputation results 
-	-z: all *.zip files in imputation_results_folder will be unzipped
-Step2: Filtering imputation results for R2<0.8 and multi-allelic variants
-	filter vcf got R2>0.8
-Step3: Merging all chromosomes(if more than 1) into one plinkset
-	Merging back in the original genotypes.
-        remove multi-position variants(assumed multi-allelic)
-        update VarID with RSID from ref file provided
-Step4: update IDs,SNP names and sex
-        IDs: 0 FID_IID -> FID IID
-        sex: from race and sex file
-        SNP names: from ref file
-Step5:  merge back in genotyped variants
-        the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
-        update genotyped variants to RSIDs
-        merge the genotyped and imputed data
-Step6: SNP filters
-        HWE(based on females): 1e-6
-        MAF: 0.01 (1 percent)
-Step7: (skipped performed in part1) Heterozygocity + Autosmal PC outliers 
-Step8: keep SNPs overlapping in males and females (skip for cohorts with single sex) 
-Step9: keep individuals in final autosomal plinkset \n\n"
+-h will display this message"
         }
 
 #parse options
@@ -346,54 +321,6 @@ output=${output}_maf01
 plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
 grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
 
-
-# printf "\n\n ##### heterozygosity check & autosomal PC outlier removal ##### \n\n"
-# printf " Skipped (PC outlier removal) as these steps are already completed in Part1 \n" 
-# #if [ 'false' ]
-# #then
-# ###### heterozygosity check #####
-
-# if [  $n_sex -eq 1 ] && [ ${sex} -eq 2 ];
-# then
-#         printf "\nSkipping Step6: #### Heterozygocity check (males only) #### \n"
-#         printf "\n Only females or other sex present \n"
-# else
-
-# 	printf "\n: #### Heterozygocity check (males only) #### \n"
-# 	printf " PS: plink requires autosomal chromosome for --het,  using dog as species to treat X-chromosome as autosomal for this step.
-#          and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
-# 	## filter males and prune set (removed --filter-males flag)
-# 	plinkset_x_out=${output};
-# 	#plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
-# 	plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
-# 	plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in --make-bed --out ${plinkset_x_out}_pruned > /dev/null
-# 	rm ${plinkset_x_out}_prune.*
-# 	printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
-
-# 	# using "dog" as species to treat X as autosomal and overcome "Error: --het requires at least one polymorphic autosomal marker."
-# 	plink --bfile ${plinkset_x_out}_pruned --het --dog --out ${plinkset_x_out}_pruned_hetcheck > /dev/null
-# 	##plot and check for outliers
-# 	Rscript plot_het_check_outliers.R ${plinkset_x_out}_pruned_hetcheck
-# 	printf "Heterozygocity outliers(X-chr, males only) review figure: ${plinkset_x_out}_pruned_hetcheck.png \n"
-
-# 	#if there are outliers >6 sd from the F stat mean, remove them
-# 	if [ -f "${plinkset_x_out}_pruned_hetcheck_outliers.txt" ];
-# 	then
-# 	    plinkset_x_in=${plinkset_x_out}
-# 	    plinkset_x_out=${plinkset_x_out}_nohetout
-# 	    plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
-# 	    printf " Input: ${plinkset_x_in} \n"
-# 	    grep -e ' people pass filters and QC' ${plinkset_x_out}.log
-# 	    printf "Output: ${plinkset_x_out} \n"
-# 	fi
-
-# fi # Skip heterogygocity outlier check
-# grep -e ' people pass filters and QC' ${output}.log
-# printf "Output file: $output \n"
-
-# ##### PC calculation ####
-# #printf "\nStep 7: Calculating post-imputation PCs\n\n"
-
 ##### Subset to Overlapping SNPs between sexes #####
 # skip overlapping SNP step for single sex dataset
 n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
@@ -432,7 +359,17 @@ output=${output}_nohh
 printf "\n Set het. haploid genotypes missing in ${output}\n"
 plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
-### This is the step 
+######################## testing...
+## assume that there is a variable supplied that is a comma separated list of files with IDs for each subset to be filtered to. 
+## as of now, this will be between 1 and 4 lists corresponding to the EUR, AA, LatHisp, and CaribHisp subsets. 
+
+# get a corresponding list of sets
+for i in EUR AA LatHisp CaribHisp ; 
+do 
+    echo $subset_file_list | sed 's/,/\n/g' | grep $i 
+
+done
+    
 
 # STEP 9: Remove PC outliers based on final plinkset
 ##### Step 9: Remove individuals based on autosomal PC outliers) #####
