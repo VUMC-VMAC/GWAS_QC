@@ -181,7 +181,8 @@ fi
 
 #get the output folder
 output_folder=${output_stem%/*}/
-
+# get the stem of genotype files in case it is in another folder
+geno_stem=${preimputation_geno##*/}
 
 ################# Start the post-imputation QC ######################
 
@@ -261,23 +262,23 @@ printf " reference aligned genotype file, ending in *-updated : ${preimputation_
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 # this step was performed in part2, however, keeping it for robustness
 printf "Updating genotype var_ID to TOPMED imputation server format chrX:POS:REF:ALT...\n"
-awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt
-plink --bfile ${preimputation_geno} --update-name ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt 1 2 --make-bed --memory 15000 --out ${output_folder}/${preimputation_geno##*/}_TOPMED_varID  > /dev/null
+awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${geno_stem}_TOPMED_varID.txt
+plink --bfile ${preimputation_geno} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 $plink_memory_flag --make-bed --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
 # update to RSIDs
 printf "Now updating genotype var_ID updated to RSID...\n"
-plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
+plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
-awk '{ print $2 }' ${output_folder}/${preimputation_geno##*/}_rsid.bim > ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt
+awk '{ print $2 }' ${output_folder}/${geno_stem}_rsid.bim > ${output_folder}/${geno_stem}_genotyped_variants.txt
 
 # remove variants for which there are genotypes from the bim file
 output_last=$output
 output=${output}_nogeno
-plink --bfile ${output_last} --exclude ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt $plink_memory_limit --make-bed --out $output > /dev/null
+plink --bfile ${output_last} --exclude ${output_folder}/${geno_stem}_genotyped_variants.txt $plink_memory_limit --make-bed --out $output > /dev/null
 printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
-plink --bfile ${output} --bmerge ${output_folder}/${preimputation_geno##*/}_rsid $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
+plink --bfile ${output} --bmerge ${output_folder}/${geno_stem}_rsid $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
 new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
@@ -293,11 +294,10 @@ if [ ! -z "$sameposwarnings" ] ;
 then
     printf "Getting same position warnings. \n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
-    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt $plink_memory_limit --make-bed --out ${output}2 > /dev/null
-    printf "Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
     printf "Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
+    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt $plink_memory_limit --make-bed --out ${output}2 > /dev/null
     printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
-    plink --bfile ${output}2 --bmerge ${preimputation_geno} $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
+    plink --bfile ${output}2 --bmerge ${output_folder}/${geno_stem}_rsid $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
 
     #check for more warnings
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
