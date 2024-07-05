@@ -17,7 +17,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified(assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -c [CHR] -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
+SCRIPTNAME.sh -c [CHR] -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d -m [plink_memory_limit]
 
 CHR = X; Chromosome number [int 1-26] to be processed
 
@@ -34,6 +34,8 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
 
 -p = final autosomal plinkset stem with IID and FID matching the input plinkset and PC outliers removed, used in Xchromosome GWAS QC to match autosomal individuals in final plinkset.
+
+plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
 -z indicates that the imputation results will need to be unzipped. All *.zip files in imputation_results_folder will be unzipped with password provided in pass.txt
 -x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
@@ -70,17 +72,18 @@ Step9: keep individuals in final autosomal plinkset \n\n"
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'c:o:i:r:f:s:g:p:zxdh' flag; do
+while getopts 'c:o:i:r:f:s:g:p:m:zxdh' flag; do
   case "${flag}" in
     c) CHR="${OPTARG}";; # VJ: TODO include test for CHR -lt 26 and -gt 0
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
     r) race_file="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
-    s) snp_names_file="${OPTARG}" ;;\
+    s) snp_names_file="${OPTARG}" ;;
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
     p) ds_plinkset="${OPTARG}" ;;
+    m) plink_memory_limit="${OPTARG}" ;;
     x) skip_first_filters='true' ;;
     d) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
@@ -155,11 +158,10 @@ then
     exit 1
 fi
 
-#validate the race file
-if [ ! -f "$race_file" ]; 
-then
-    printf "File with race information ($race_file) does not exist! Please try again, specifying the correct input file.\n"
-    exit 1
+if [ "$plink_memory_limit" ];
+then 
+    printf "Memory limit for plink calls: $plink_memory_limit \n"
+    plink_memory_limit=$( echo "--memory $plink_memory_limit" )
 fi
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
@@ -205,12 +207,12 @@ then
 	#filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
 	printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
 	#restrict to variants with R2>=0.80    
-	plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
+	plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
 	# exclude duplicate variants
-	awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups     
-	plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${CHR}.dups --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null ;
+	awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups
+	plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${CHR}.dups $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null ;
 	# update name with rs numbers
-	plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
+	plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
 
 	#print out numbers of variants
 	total_var=$(( $(grep "out of" ${output_stem}_chr${CHR}_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
@@ -231,12 +233,12 @@ printf "Step 4 : Updating sex in the fam file and applying standard variant filt
 output_last=$output
 output=${output}_IDs
 awk '{ print "0 "$1"_"$2" "$1" "$2 }' $sex_file > ${output_last}_update_ids.txt
-plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --memory 15000 --make-bed --out $output > /dev/null
+plink --bfile $output_last --update-ids ${output_last}_update_ids.txt $plink_memory_limit --make-bed --out $output > /dev/null
 
 #update SNP names and add sex back into fam file
 output_last=$output
 output=${output}_sex
-plink --bfile ${output_last} --update-sex ${sex_file} --memory 15000 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_last} --update-sex ${sex_file} $plink_memory_limit --make-bed --out ${output} > /dev/null
 
 tmp=$( grep "people updated" ${output}.log | awk '{ print $2 }' )
 printf "$tmp people whose ids and sex were able to be updated using the sex file.\n"
@@ -263,7 +265,7 @@ awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folde
 plink --bfile ${preimputation_geno} --update-name ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt 1 2 --make-bed --memory 15000 --out ${output_folder}/${preimputation_geno##*/}_TOPMED_varID  > /dev/null
 # update to RSIDs
 printf "Now updating genotype var_ID updated to RSID...\n"
-plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed --memory 15000 --out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
+plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
 awk '{ print $2 }' ${output_folder}/${preimputation_geno##*/}_rsid.bim > ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt
@@ -271,12 +273,11 @@ awk '{ print $2 }' ${output_folder}/${preimputation_geno##*/}_rsid.bim > ${outpu
 # remove variants for which there are genotypes from the bim file
 output_last=$output
 output=${output}_nogeno
-plink --bfile ${output_last} --exclude ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt --make-bed --memory 15000 \
---out $output > /dev/null
+plink --bfile ${output_last} --exclude ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt $plink_memory_limit --make-bed --out $output > /dev/null
 printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
-plink --bfile ${output} --bmerge ${output_folder}/${preimputation_geno##*/}_rsid --make-bed --memory 15000 --out ${output}_merged > /dev/null
+plink --bfile ${output} --bmerge ${output_folder}/${preimputation_geno##*/}_rsid $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
 new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
@@ -292,11 +293,11 @@ if [ ! -z "$sameposwarnings" ] ;
 then
     printf "Getting same position warnings. \n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
-    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
+    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt $plink_memory_limit --make-bed --out ${output}2 > /dev/null
     printf "Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
     printf "Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
     printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
-    plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
+    plink --bfile ${output}2 --bmerge ${preimputation_geno} $plink_memory_limit --make-bed --out ${output}_merged > /dev/null
 
     #check for more warnings
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
@@ -322,7 +323,7 @@ then
     printf "Running the HWE filter based on p values in females only...\n"
 
     # run HWE filter using only females
-    plink --bfile ${output_last} --filter-females --hwe 0.000001 --memory 15000 --make-bed --out ${output_females}  > /dev/null
+    plink --bfile ${output_last} --filter-females --hwe 0.000001 $plink_memory_limit --make-bed --out ${output_females}  > /dev/null
 
     # extract list of variants to remove from all samples
     awk '{print $2}' ${output_females}.bim > ${output_females}_SNPs.txt
@@ -333,7 +334,7 @@ then
 
     # filter those variants from all samples
     output=${output}_femHWE6
-    plink --bfile ${output_last} --extract ${output_females}_SNPs.txt --memory 15000 --make-bed --out ${output} > /dev/null
+    plink --bfile ${output_last} --extract ${output_females}_SNPs.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
     grep -e 'pass filters and QC' ${output}.log
 else
     printf "\nSkipping Hardy Weinberg equilibrium filter because no females are present.\n"
@@ -342,7 +343,7 @@ fi
 printf "Running MAF filter...\n"
 output_last=$output
 output=${output}_maf01
-plink --bfile ${output_last} --maf 0.01 --memory 15000 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
 grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
 
 
@@ -402,8 +403,8 @@ then
 else
 	printf "\nStep 8: Subset to overlapping SNPs between sexes \n\n"
 	# filter to each sex and use a missingness flag to filter out variants not present for those samples, writing out just a list of variants. 
-	plink --bfile ${output} --filter-females --geno 0.01 --write-snplist --out ${output}_females --memory 15000 > /dev/null
-	plink --bfile ${output} --filter-males --geno 0.01 --write-snplist --out ${output}_males --memory 15000 > /dev/null
+	plink --bfile ${output} --filter-females --geno 0.01 $plink_memory_limit --write-snplist --out ${output}_females > /dev/null
+	plink --bfile ${output} --filter-males --geno 0.01 $plink_memory_limit --write-snplist --out ${output}_males > /dev/null
 	# sort those files and get overlapping variant IDs
 	cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
 	cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
@@ -412,7 +413,7 @@ else
 	output_last=$output
 	output=${output}_overlapping
 	# now extract just those variants from the file with all the samples
-	plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles --make-bed --out ${output} --memory 15000 > /dev/null
+	plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles $plink_memory_limit --make-bed --out ${output} > /dev/null
 	printf "Output: ${output} \n"
 	printf " female SNPs: $(wc -l < ${output_last}_female_snps.txt) \n"
 	printf " male SNPs: $(wc -l < ${output_last}_male_snps.txt) \n"
@@ -423,13 +424,13 @@ fi
 # check no hh warnings on females and set hh to missing
 printf "\n Confirm no hh warning for females only below: \n"
 # will have issues with males only cohort. skip this for male only
-plink --bfile ${output} --filter-females --freq --memory 15000 --out $output > /dev/null
+plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
 
 # set hh missing
 output_last=$output
 output=${output}_nohh
 printf "\n Set het. haploid genotypes missing in ${output}\n"
-plink --bfile ${output_last} --set-hh-missing --memory 15000 --make-bed --out ${output} > /dev/null
+plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
 ### This is the step 
 
@@ -442,13 +443,13 @@ printf "\n individuals in final autosomal dataset(individual list: ${output}_ind
 
 plinkset_x_in=${output}
 plinkset_x_out=${plinkset_x_in}_noout
-plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt $plink_memory_limit --make-bed --out ${plinkset_x_out} > /dev/null
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out} \n"
 
 #make final file
 output_last=$plinkset_x_out
 output=${output_stem}
-plink --bfile ${output_last} --memory 15000 --make-bed --out ${output_stem} > /dev/null
+plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
 printf "\n Final X-chromosome plinkset: ${output_stem} \n Part Postimputation ... Done! \n"
 
