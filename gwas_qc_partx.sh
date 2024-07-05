@@ -13,7 +13,7 @@ set -e
 
 #define usage
 display_usage() {
-    printf "GWAS QC Part 1 (including X-chromosome)
+    printf "GWAS QC for X Chromosome Preimputation 
 
 Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
 the phenotype column in .fam is updated with sex in process.
@@ -97,7 +97,7 @@ Step4: *** SKIPPED *** Filter out SNPs with absolute MAF sex difference > 0.02 (
 Step5:  [if both sexes present] Filter out SNPs on differential missingness
         drop SNPs with P < 0.0000001 (1e-7)
 Step6: *** SKIPPED ***(performed in autosomal part1) Heterozygocity + Autosmal PC outliers
-Step7: Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals)
+Step7: *** SKIPPED ***(we no longer remove samples bc of PCs in autosomal QC at this stage and never have heterozygosity outliers) Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals)
 Step8: [if females are present] Hardy Weinberg equilibrium(HWE) 1e6 (based on females)
         drop SNPS in both males and females that are out of HWE."
 
@@ -107,7 +107,7 @@ plinkset_in=${input_fileset}
 n_x=$(awk '$1==23{print}' ${plinkset_in}.bim | wc -l)
 
 #print out inputs
-printf "GWAS QC Part 1 (including X-chromosome) Script
+printf "GWAS QC for X Chromosome Preimputation 
 
 Input data : $input_fileset
 Output stem : $output_stem
@@ -116,7 +116,9 @@ Number of X-chromosome SNPs: ${n_x}
 "
 if [[ ${n_x} -lt 300 ]]; 
 then
-  printf "%s\n" "CAUTION: too few X-chromosomes, script might error at sex check";
+    # updated this to simply fail and exit since there is no point in attempting QC with fewer than this number of variants
+    printf "%s\n" "ERROR: too few X-chromosomes to perform QC";
+    exit 1
 fi
 
 
@@ -129,24 +131,6 @@ then
 else
    printf " Input data build: ${build} \n"
 fi
-
-#print message if 1000G dataset is not specified
-if [ -z "$stem_1000G" ];
-then
-    printf 'No location was specified for the 1000G data, so no PCs will be calculated including them!\n\n'
-else
-    echo $stem_1000G
-    printf "1000G data for PC calculation : ${stem_1000G}\n\n"
-fi
-
-#print message if the race file is not specified
-if [ -z "$race_file" ];
-then
-    printf "No file was supplied with self-report race information, so PCs will not be colored based on these values.\n\n"
-else
-    printf "Self-report race values will be drawn from ${race_file} in order to color PCs.\n\n"
-fi
-
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 # VJ: these checks may not be necessary as we have moved scripts to container

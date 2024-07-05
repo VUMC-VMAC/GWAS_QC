@@ -188,15 +188,12 @@ if [ "$do_unzip" = 'true' ];
 then
     #unzip imputation results using password
     printf "Step 1 : Unzipping imputation results\n\n"
-    for i in $( ls ${imputation_results_folder}/*.zip );
-    do
-	yes y | unzip -P $( cat ${imputation_results_folder}/pass.txt ) $i -d $imputation_results_folder
-    done
+    unzip -P $( cat ${imputation_results_folder}/pass.txt ) ${imputation_results_folder}/chr_${CHR}.zip -d $imputation_results_folder
 else
     #make sure the imputation results are actually unzipped
     if test ! -f ${imputation_results_folder}/chr${CHR}.dose.vcf.gz ;
     then 
-	printf "The -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chr${CHR}.dose.vcf.gz for each chromosome )! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
+	printf "The -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chr${CHR}.dose.vcf.gz)! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
 	exit 1
     else
 	printf "Step 1 (unzipping the imputation results) is already complete. Proceeding the step 2...\n\n"
@@ -205,44 +202,26 @@ fi
 
 if [ $skip_first_filters = 'false' ];
 then
-
 	#filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
 	printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
-	for i in ${CHR}; do
-	 
-	      #restrict to variants with R2>=0.80    
-	      plink2 --vcf ${imputation_results_folder}/chr${i}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --memory 15000 --make-bed --out ${output_stem}_chr${i}_temp > /dev/null;
-	      awk '{ print $2,$4 }' ${output_stem}_chr${i}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${i}.dups
-	      #dup_pos=$( awk '{ print $4 }' ${output_stem}_chr${i}_temp.bim | uniq -d );     
-	      #for j in $dup_pos ; do grep -w $j ${output_stem}_chr${i}_temp.bim | awk '{ print $2 }' >> ${output_stem}_chr${i}.dups ; done;
-	      # exclude duplicate variants     
-	      plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${i}.dups --memory 15000 --make-bed --out ${output_stem}_chr${i}_temp_nodups > /dev/null;
-	      # update name with rs numbers
-	      plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --memory 15000 --make-bed --out ${output_stem}_chr${i}_temp_nodups_names > /dev/null; 
-	done
-	
+	#restrict to variants with R2>=0.80    
+	plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
+	# exclude duplicate variants
+	awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups     
+	plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${CHR}.dups --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null ;
+	# update name with rs numbers
+	plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt --memory 15000 --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
+
 	#print out numbers of variants
-	total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-	afterR2=$( cat ${output_stem}_chr*_temp.bim | wc -l )
-	nomulti=$( cat ${output_stem}_chr*_temp_nodups.bim | wc -l )
-	printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
+	total_var=$(( $(grep "out of" ${output_stem}_chr${CHR}_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
+	afterR2=$( cat ${output_stem}_chr${CHR}_temp.bim | wc -l )
+	nomulti=$( cat ${output_stem}_chr${CHR}_temp_nodups.bim | wc -l )
+	printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions for chr ${CHR}\n\n"
 	
-	#Merge all chromosomes into one file
-	printf "Step 3 : Merging all chromosomes into one file\n"
-	#create merge file (emptying old version if present)
-	echo "" | tee ${output_stem}_merge_list.txt
-	for i in ${CHR}; do     
-	    printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ; 
-	done
-
-	#merge individual chromosome files to be one large file
-	output=${output_stem}_raw
-	plink --merge-list ${output_stem}_merge_list.txt --memory 15000 --make-bed --out ${output} > /dev/null
-
 	grep 'pass filters and QC' ${output}.log
 else
     output=$output_stem
-    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
+    printf "Skipping the conversion to plink format and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the file stem is $output\n"
 fi
 
 
@@ -251,7 +230,6 @@ printf "Step 4 : Updating sex in the fam file and applying standard variant filt
 #update person ids using the race and sex file
 output_last=$output
 output=${output}_IDs
-# awk '{ print }' $preimputation_geno}.bim > ${output_last}_update_ids.txt
 awk '{ print "0 "$1"_"$2" "$1" "$2 }' $sex_file > ${output_last}_update_ids.txt
 plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --memory 15000 --make-bed --out $output > /dev/null
 
@@ -259,20 +237,19 @@ plink --bfile $output_last --update-ids ${output_last}_update_ids.txt --memory 1
 output_last=$output
 output=${output}_sex
 plink --bfile ${output_last} --update-sex ${sex_file} --memory 15000 --make-bed --out ${output} > /dev/null
-printf "FID IID updated: 0 FID_IID -> FID IID \n"
-printf "sex updated: ${sex_file} \n"
-grep -e "people updated" ${output}.log
 
-n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
-sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | awk '{print $2}' ) 
-sex=( $sex )
-if [ $n_sex -ne 2 ];
-then
-printf "\n ERROR: sex not proper/updated in fam:
- ${output}.fam , 1=Male, 2=Female;
-$(awk '{print $5}' ${output}.fam | sort | uniq -dc )\n"
-        #exit 1;
-fi
+tmp=$( grep "people updated" ${output}.log | awk '{ print $2 }' )
+printf "$tmp people whose ids and sex were able to be updated using the sex file.\n"
+
+## it is unclear why this section is here. If sex isn't present in the fam file (or in the supplied file with sex info), there are other issues. 
+#n_sex=$( awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
+#if [ $n_sex -ne 2 ];
+#then
+#    printf "\nERROR: sex not proper/updated in fam:
+#${output}.fam , 1=Male, 2=Female;
+#$(awk '{print $5}' ${output}.fam | sort | uniq -dc )\n"
+#    exit 1;
+#fi
 
 ###### merge back in genotypes #####
 
@@ -281,14 +258,12 @@ printf " reference aligned genotype file, ending in *-updated : ${preimputation_
 
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 # this step was performed in part2, however, keeping it for robustness
-printf " genotype var_ID updated to TOPMED imputation server format chrX:POS:REF:ALT \n"
+printf "Updating genotype var_ID to TOPMED imputation server format chrX:POS:REF:ALT...\n"
 awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt
-plink --bfile ${preimputation_geno} --update-name ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt 1 2 --make-bed --memory 15000 \
---out ${output_folder}/${preimputation_geno##*/}_TOPMED_varID  > /dev/null
+plink --bfile ${preimputation_geno} --update-name ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt 1 2 --make-bed --memory 15000 --out ${output_folder}/${preimputation_geno##*/}_TOPMED_varID  > /dev/null
 # update to RSIDs
-printf " genotype var_ID updated to RSID \n"
-plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed --memory 15000 \
---out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
+printf "Now updating genotype var_ID updated to RSID...\n"
+plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed --memory 15000 --out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
 awk '{ print $2 }' ${output_folder}/${preimputation_geno##*/}_rsid.bim > ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt
@@ -318,8 +293,8 @@ then
     printf "Getting same position warnings. \n"
     grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
     plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
-    printf " Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
-    printf " Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
+    printf "Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
+    printf "Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
     printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
     plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
 
@@ -330,125 +305,113 @@ then
         printf "\nGetting more same position warnings! Please check and handle manually!\n"
     fi
 fi
+
 #update output variable
 output=${output}_merged
 printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
 printf "Output file: ${output} \n"
 
-
-
 # SNP filters
-printf "Step 6 : SNP filters \n" 
-printf "\n Hardy Weinberg equilibrium 1e6 (based on females) as only females are diploids XX  \n"
-
-if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
+printf "Step 6 : Applying Hardy-Weinberg equilibrium and MAF filters.\n" 
+# Only run the HWE filter if there are females present
+if [[ $( awk '{print $5}' ${output}.fam | grep "2" ) ]];
 then
-        printf "\nSkipping step 6: #### Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX #### \n"
-        printf "\n Only males or other sex present \n"
+    output_last=${output}
+    output_females=${output}_1e6femHWE
+
+    printf "Running the HWE filter based on p values in females only...\n"
+
+    # run HWE filter using only females
+    plink --bfile ${output_last} --filter-females --hwe 0.000001 --memory 15000 --make-bed --out ${output_females}  > /dev/null
+
+    # extract list of variants to remove from all samples
+    awk '{print $2}' ${output_females}.bim > ${output_females}_SNPs.txt
+
+    # output numbers to the log file
+    grep -e 'variants loaded from .bim file' ${output_females}.log
+    grep -e "hwe: " ${output_females}.log
+
+    # filter those variants from all samples
+    output=${output}_femHWE6
+    plink --bfile ${output_last} --extract ${output_females}_SNPs.txt --memory 15000 --make-bed --out ${output} > /dev/null
+    grep -e 'pass filters and QC' ${output}.log
 else
-
-	plinkset_x_in=${output}
-	plinkset_x_out=${plinkset_x_in}_1e6femHWE
-	# get SNPS out of HWE in females
-	plink --bfile ${plinkset_x_in} --filter-females --hwe 0.000001 --memory 15000 --make-bed --out ${plinkset_x_out}  > /dev/null
-	awk '{print $2}' ${plinkset_x_out}.bim > ${plinkset_x_out}_SNPs.txt
-	    printf " Input: ${plinkset_x_in} \n"
-	grep -e 'variants loaded from .bim file' ${plinkset_x_out}.log
-	#grep -e ' removed due to Hardy-Weinberg exact test.' ${plinkset_x_out}.log
-	grep -e "hwe: " ${plinkset_x_out}.log
-	#grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
-	#    printf " Output: ${plinkset_x_out} \n"
-
-	output_last=$output
-	output=${output}_femHWE6
-	plink --bfile ${output_last} --extract ${plinkset_x_out}_SNPs.txt --memory 15000 --make-bed --out ${output} > /dev/null
-	grep -e 'pass filters and QC' ${output}.log
-
+    printf "\nSkipping Hardy Weinberg equilibrium filter because no females are present.\n"
 fi
 
+printf "Running MAF filter...\n"
 output_last=$output
 output=${output}_maf01
 plink --bfile ${output_last} --maf 0.01 --memory 15000 --make-bed --out ${output} > /dev/null
 grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
 
 
+# printf "\n\n ##### heterozygosity check & autosomal PC outlier removal ##### \n\n"
+# printf " Skipped (PC outlier removal) as these steps are already completed in Part1 \n" 
+# #if [ 'false' ]
+# #then
+# ###### heterozygosity check #####
 
+# if [  $n_sex -eq 1 ] && [ ${sex} -eq 2 ];
+# then
+#         printf "\nSkipping Step6: #### Heterozygocity check (males only) #### \n"
+#         printf "\n Only females or other sex present \n"
+# else
 
-printf "\n\n ##### heterozygosity check & autosomal PC outlier removal ##### \n\n"
-printf " Skipped (PC outlier removal) as these steps are already completed in Part1 \n" 
-#if [ 'false' ]
-#then
-###### heterozygosity check #####
+# 	printf "\n: #### Heterozygocity check (males only) #### \n"
+# 	printf " PS: plink requires autosomal chromosome for --het,  using dog as species to treat X-chromosome as autosomal for this step.
+#          and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
+# 	## filter males and prune set (removed --filter-males flag)
+# 	plinkset_x_out=${output};
+# 	#plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
+# 	plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
+# 	plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in --make-bed --out ${plinkset_x_out}_pruned > /dev/null
+# 	rm ${plinkset_x_out}_prune.*
+# 	printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
 
-if [  $n_sex -eq 1 ] && [ ${sex} -eq 2 ];
-then
-        printf "\nSkipping Step6: #### Heterozygocity check (males only) #### \n"
-        printf "\n Only females or other sex present \n"
-else
+# 	# using "dog" as species to treat X as autosomal and overcome "Error: --het requires at least one polymorphic autosomal marker."
+# 	plink --bfile ${plinkset_x_out}_pruned --het --dog --out ${plinkset_x_out}_pruned_hetcheck > /dev/null
+# 	##plot and check for outliers
+# 	Rscript plot_het_check_outliers.R ${plinkset_x_out}_pruned_hetcheck
+# 	printf "Heterozygocity outliers(X-chr, males only) review figure: ${plinkset_x_out}_pruned_hetcheck.png \n"
 
-	printf "\n: #### Heterozygocity check (males only) #### \n"
-	printf " PS: plink requires autosomal chromosome for --het,  using dog as species to treat X-chromosome as autosomal for this step.
-         and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
-	## filter males and prune set (removed --filter-males flag)
-	plinkset_x_out=${output};
-	#plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
-	plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
-	plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in --make-bed --out ${plinkset_x_out}_pruned > /dev/null
-	rm ${plinkset_x_out}_prune.*
-	printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
+# 	#if there are outliers >6 sd from the F stat mean, remove them
+# 	if [ -f "${plinkset_x_out}_pruned_hetcheck_outliers.txt" ];
+# 	then
+# 	    plinkset_x_in=${plinkset_x_out}
+# 	    plinkset_x_out=${plinkset_x_out}_nohetout
+# 	    plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+# 	    printf " Input: ${plinkset_x_in} \n"
+# 	    grep -e ' people pass filters and QC' ${plinkset_x_out}.log
+# 	    printf "Output: ${plinkset_x_out} \n"
+# 	fi
 
-	# using "dog" as species to treat X as autosomal and overcome "Error: --het requires at least one polymorphic autosomal marker."
-	plink --bfile ${plinkset_x_out}_pruned --het --dog --out ${plinkset_x_out}_pruned_hetcheck > /dev/null
-	##plot and check for outliers
-	Rscript plot_het_check_outliers.R ${plinkset_x_out}_pruned_hetcheck
-	printf "Heterozygocity outliers(X-chr, males only) review figure: ${plinkset_x_out}_pruned_hetcheck.png \n"
+# fi # Skip heterogygocity outlier check
+# grep -e ' people pass filters and QC' ${output}.log
+# printf "Output file: $output \n"
 
-	#if there are outliers >6 sd from the F stat mean, remove them
-	if [ -f "${plinkset_x_out}_pruned_hetcheck_outliers.txt" ];
-	then
-	    plinkset_x_in=${plinkset_x_out}
-	    plinkset_x_out=${plinkset_x_out}_nohetout
-	    plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
-	    printf " Input: ${plinkset_x_in} \n"
-	    grep -e ' people pass filters and QC' ${plinkset_x_out}.log
-	    printf "Output: ${plinkset_x_out} \n"
-	fi
-
-fi # Skip heterogygocity outlier check
-grep -e ' people pass filters and QC' ${output}.log
-printf "Output file: $output \n"
-
-##### PC calculation ####
-#printf "\nStep 7: Calculating post-imputation PCs\n\n"
+# ##### PC calculation ####
+# #printf "\nStep 7: Calculating post-imputation PCs\n\n"
 
 ##### Subset to Overlapping SNPs between sexes #####
 # skip overlapping SNP step for single sex dataset
 n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
-sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | awk '{print $2}')
 if [ $n_sex -ne 2 ];
 then
-        printf "Warning: single sex dataset skipping \nStep 8: Subset to Overlapping SNPs between sexes \n"
-        printf "N sexes: $n_sex, sex code: $sex \n"
+        printf "Warning: single sex dataset skipping subset to overlapping SNPs between sexes.\n"
 else
+	printf "\nStep 8: Subset to overlapping SNPs between sexes \n\n"
+	# filter to each sex and use a missingness flag to filter out variants not present for those samples, writing out just a list of variants. 
+	plink --bfile ${output} --filter-females --geno 0.01 --write-snplist --out ${output}_females --memory 15000 > /dev/null
+	plink --bfile ${output} --filter-males --geno 0.01 --write-snplist --out ${output}_males --memory 15000 > /dev/null
+	# sort those files and get overlapping variant IDs
+	cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
+	cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
+	comm -12 ${output}_males.snplist ${output}_females.snplist  > ${output}_overlapping_SNPs.txt
 
-	printf "\nStep 8: Subset to Overlapping SNPs between sexes \n\n"
-	plink --bfile ${output} --filter-females --make-bed --out ${output}_females --memory 15000 > /dev/null
-	plink --bfile ${output} --filter-males --make-bed --out ${output}_males --memory 15000 > /dev/null
-	awk '{print $2}' ${output}_females.bim | sort > ${output}_female_snps.txt
-	awk '{print $2}' ${output}_males.bim | sort > ${output}_male_snps.txt
-	comm -12 ${output}_male_snps.txt ${output}_female_snps.txt  > ${output}_overlapping_SNPs.txt
-fi
-
-output_last=$output
-output=${output}_overlapping
-if [ $n_sex -ne 2 ];
-then
-        printf "Creating ${output} plinkset for consistency \n"
-        plink --bfile ${output_last} --real-ref-alleles --make-bed --out ${output} --memory 15000 > /dev/null
-        printf "Output: ${output} \n"
-        grep -e ' people pass filters and QC' ${output}.log
-else
-
+	output_last=$output
+	output=${output}_overlapping
+	# now extract just those variants from the file with all the samples
 	plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles --make-bed --out ${output} --memory 15000 > /dev/null
 	printf "Output: ${output} \n"
 	printf " female SNPs: $(wc -l < ${output_last}_female_snps.txt) \n"
@@ -458,16 +421,17 @@ else
 fi
 
 # check no hh warnings on females and set hh to missing
-printf "\n Confirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
-
+printf "\n Confirm no hh warning for females only below: \n"
 # will have issues with males only cohort. skip this for male only
 plink --bfile ${output} --filter-females --freq --memory 15000 --out $output > /dev/null
 
 # set hh missing
 output_last=$output
 output=${output}_nohh
-printf "\n set het. haploid genotypes missing in ${output}\n"
+printf "\n Set het. haploid genotypes missing in ${output}\n"
 plink --bfile ${output_last} --set-hh-missing --memory 15000 --make-bed --out ${output} > /dev/null
+
+### This is the step 
 
 # STEP 9: Remove PC outliers based on final plinkset
 ##### Step 9: Remove individuals based on autosomal PC outliers) #####
