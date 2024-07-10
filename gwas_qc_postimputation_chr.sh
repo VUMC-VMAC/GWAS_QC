@@ -1,7 +1,5 @@
 #!/bin/bash
 # VJ: 20200709 modified post imputation script for single chromosome run
-# gwas_qc_postimputation_chr.sh
-# added -c option to specify single chromosome number[int 1-22],[X/23]
 # ERM: 20240705 modified for SNPWeights update
 #fail on error
 set -e
@@ -18,9 +16,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -c [CHR] -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
-
-CHR = X; Chromosome number [int 1-26] to be processed
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -47,9 +43,8 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'c:o:i:r:f:s:g:p:zxdh' flag; do
+while getopts 'o:i:r:f:s:g:p:zxdh' flag; do
   case "${flag}" in
-    c) CHR="${OPTARG}";; # VJ: TODO include test for CHR -lt 26 and -gt 0
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
     r) race_file="${OPTARG}" ;;
@@ -185,36 +180,34 @@ fi
 
 if [ $skip_first_filters = 'false' ];
 then
-	#filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
-	printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
+    #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
+    printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
 
-	      #restrict to variants with R2>=0.80    
-	      plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
-	      # exclude duplicate variants
-	      awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups
-	      plink2 --bfile ${output_stem}_chr${CHR}_temp --exclude ${output_stem}_chr${CHR}.dups $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null;
-	      # update name with rs numbers
-	      plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
+    #restrict to variants with R2>=0.80    
+    plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
+    # exclude duplicate variants
+    awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups
+    plink2 --bfile ${output_stem}_chr${CHR}_temp --exclude ${output_stem}_chr${CHR}.dups $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null;
+    # update name with rs numbers
+    plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
 	
-	#print out numbers of variants
-	total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-	afterR2=$( cat ${output_stem}_chr*_temp.bim | wc -l )
-	nomulti=$( cat ${output_stem}_chr*_temp_nodups.bim | wc -l )
-	printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
+    #print out numbers of variants
+    total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
+    afterR2=$( cat ${output_stem}_chr*_temp.bim | wc -l )
+    nomulti=$( cat ${output_stem}_chr*_temp_nodups.bim | wc -l )
+    printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
 	
-	grep 'pass filters and QC' ${output}.log
+    grep 'pass filters and QC' ${output}.log
 else
     output=$output_stem
     printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
 fi
-
 
 #update SNP names, sex, and perform standard SNP filtering
 printf "Step 4 : Updating sex in the fam file and applying standard variant filters\n\n"
 #update person ids using the race and sex file
 output_last=$output
 output=${output}_IDs
-# awk '{ print }' $preimputation_geno}.bim > ${output_last}_update_ids.txt
 awk '{ print "0 "$1"_"$2" "$1" "$2 }' $sex_file > ${output_last}_update_ids.txt
 plink --bfile $output_last --update-ids ${output_last}_update_ids.txt $plink_memory_limit --make-bed --out $output > /dev/null
 
@@ -222,23 +215,20 @@ plink --bfile $output_last --update-ids ${output_last}_update_ids.txt $plink_mem
 output_last=$output
 output=${output}_sex
 plink --bfile ${output_last} --update-sex ${sex_file} $plink_memory_limit --make-bed --out ${output} > /dev/null
-printf "FID IID updated: 0 FID_IID -> FID IID \n"
 printf "sex updated: ${sex_file} \n"
 grep -e "people updated" ${output}.log
 
 ###### merge back in genotypes #####
 
 printf "\nStep 5: Merging back in the original genotypes.\n"
-printf " reference aligned genotype file, ending in *-updated : ${preimputation_geno} \n"
 
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 # this step was performed in part2, however, keeping it for robustness
-########### this step assumes chr X
-printf " genotype var_ID updated to TOPMED imputation server format chrX:POS:REF:ALT \n"
+printf "Updating pre-imputation variant IDs to TOPMED imputation server format chrX:POS:REF:ALT...\n"
 awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${geno_stem}_TOPMED_varID.txt
 plink --bfile ${preimputation_geno} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
 # update to RSIDs
-printf " genotype var_ID updated to RSID \n"
+printf "Now updating pre-imputation variant IDs to RSID...\n"
 plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
