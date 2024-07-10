@@ -162,7 +162,8 @@ fi
 
 #get the output folder
 output_folder=${output_stem%/*}/
-
+# get the stem of genotype files in case it is in another folder
+geno_stem=${preimputation_geno##*/}
 
 ################# Start the post-imputation QC ######################
 
@@ -234,23 +235,23 @@ printf " reference aligned genotype file, ending in *-updated : ${preimputation_
 # this step was performed in part2, however, keeping it for robustness
 ########### this step assumes chr X
 printf " genotype var_ID updated to TOPMED imputation server format chrX:POS:REF:ALT \n"
-awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt
-plink --bfile ${preimputation_geno} --update-name ${output_folder}/${preimputation_geno##*/}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${preimputation_geno##*/}_TOPMED_varID  > /dev/null
+awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${geno_stem}_TOPMED_varID.txt
+plink --bfile ${preimputation_geno} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
 # update to RSIDs
 printf " genotype var_ID updated to RSID \n"
-plink --bfile ${output_folder}/${preimputation_geno##*/}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${preimputation_geno##*/}_rsid > /dev/null
+plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
-awk '{ print $2 }' ${output_folder}/${preimputation_geno##*/}_rsid.bim > ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt
+awk '{ print $2 }' ${output_folder}/${geno_stem}_rsid.bim > ${output_folder}/${geno_stem}_genotyped_variants.txt
 
 # remove variants for which there are genotypes from the bim file
 output_last=$output
 output=${output}_nogeno
-plink --bfile ${output_last} --exclude ${output_folder}/${preimputation_geno##*/}_genotyped_variants.txt --make-bed $plink_memory_limit --out $output > /dev/null
+plink --bfile ${output_last} --exclude ${output_folder}/${geno_stem}_genotyped_variants.txt --make-bed $plink_memory_limit --out $output > /dev/null
 printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
 
 # merge the genotyped and imputed data
-plink --bfile ${output} --bmerge ${output_folder}/${preimputation_geno##*/}_rsid --make-bed $plink_memory_limit --out ${output}_merged > /dev/null
+plink --bfile ${output} --bmerge ${output_folder}/${geno_stem}_rsid --make-bed $plink_memory_limit --out ${output}_merged > /dev/null
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
 new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
@@ -375,23 +376,17 @@ then
         printf "N sexes: $n_sex, sex code: $sex \n"
 else
 
-	printf "\nStep 8: Subset to Overlapping SNPs between sexes \n\n"
-	plink --bfile ${output} --filter-females --make-bed --out ${output}_females $plink_memory_limit > /dev/null
-	plink --bfile ${output} --filter-males --make-bed --out ${output}_males $plink_memory_limit > /dev/null
-	awk '{print $2}' ${output}_females.bim | sort > ${output}_female_snps.txt
-	awk '{print $2}' ${output}_males.bim | sort > ${output}_male_snps.txt
-	comm -12 ${output}_male_snps.txt ${output}_female_snps.txt  > ${output}_overlapping_SNPs.txt
-fi
+    printf "\nStep 8: Subset to overlapping SNPs between sexes \n\n"
+    # filter to each sex and use a missingness flag to filter out variants not present for those samples, writing out just a list of variants.           
+    plink --bfile ${output} --filter-females --geno 0.01 --write-snplist --out ${output}_females --memory 15000 > /dev/null
+    plink --bfile ${output} --filter-males --geno 0.01 --write-snplist --out ${output}_males --memory 15000 > /dev/null
+    # sort those files and get overlapping variant IDs        
+    cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
+    cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
+    comm -12 ${output}_males.snplist ${output}_females.snplist  > ${output}_overlapping_SNPs.txt
 
-output_last=$output
-output=${output}_overlapping
-if [ $n_sex -ne 2 ];
-then
-        printf "Creating ${output} plinkset for consistency \n"
-        plink --bfile ${output_last} --real-ref-alleles --make-bed --out ${output} $plink_memory_limit > /dev/null
-        printf "Output: ${output} \n"
-        grep -e ' people pass filters and QC' ${output}.log
-else
+    output_last=$output
+    output=${output}_overlapping
 
 	plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles --make-bed --out ${output} $plink_memory_limit > /dev/null
 	printf "Output: ${output} \n"
