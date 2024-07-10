@@ -2,7 +2,7 @@
 # Author: Vaibhav Janve 2020-04-07
 # Author 2: Emily Mahoney 2020-04-09
 # Aug 2021, Vaibhav Janve: script update to process X-chr
-
+# July 2024, ERM: SNPWeights update
 
 # VJ: singularity image and directories bound for reproducibility
 [ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
@@ -15,11 +15,10 @@ set -e
 display_usage() {
     printf "GWAS QC for X Chromosome Preimputation 
 
-Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation.
-the phenotype column in .fam is updated with sex in process.
+Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation. The phenotype column in .fam is updated with sex in process.
 
 Usage:
-gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -r [race_file] -f [sex_file] -G [stem_1000G] -b [b37] -p [ds_plinkset] -s
+gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -p [ds_plinkset] -m [plink_memory_limit] -s
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -27,26 +26,23 @@ input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam
 
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
-race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
-
-
-stem_1000G (optional) = the full path and stem to the 1000G genotype files in plink format. There must also be a file with FID, IID, race with the same stem and _race.txt as the suffix (i
-e for a plink file set like this: all_1000G.bed, all_1000G.bim, all_1000G.fam the race file would be like this all_1000G_race.txt)
--b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the x-chromosome split step.
 -p = autosomal plinkset stem with IID and FID matching the input plinkset and PC outliers removed
+
+-b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the x-chromosome split step.
+
+plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
+
 -s optional, to skip dup removal step after initial id format
 -h will show this usage
 "
         }
 
 skip_flag='false'
-while getopts 'o:i:r:f:G:b:p:sh' flag; do
+while getopts 'o:i:f:b:p:sh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
-    r) race_file="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
-    G) stem_1000G="${OPTARG}" ;;
     p) ds_plinkset="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
     s) skip_flag='true' ;;
@@ -101,10 +97,9 @@ Step7: *** SKIPPED ***(we no longer remove samples bc of PCs in autosomal QC at 
 Step8: [if females are present] Hardy Weinberg equilibrium(HWE) 1e6 (based on females)
         drop SNPS in both males and females that are out of HWE."
 
-plinkset_in=${input_fileset}
 
 # get X-chromosome SNP count
-n_x=$(awk '$1==23{print}' ${plinkset_in}.bim | wc -l)
+n_x=$(awk '$1==23{print}' ${input_fileset}.bim | wc -l)
 
 #print out inputs
 printf "GWAS QC for X Chromosome Preimputation 
@@ -114,6 +109,7 @@ Output stem : $output_stem
 File with sex information : $sex_file
 Number of X-chromosome SNPs: ${n_x}
 "
+
 if [[ ${n_x} -lt 300 ]]; 
 then
     # updated this to simply fail and exit since there is no point in attempting QC with fewer than this number of variants
@@ -123,7 +119,6 @@ fi
 
 
 # print message for input build
-
 if [ -z ${build} ]
 then
    printf " Input data build not specified assuming 'b37' \n"
@@ -132,8 +127,15 @@ else
    printf " Input data build: ${build} \n"
 fi
 
+# report plink memory limit
+if [ "$plink_memory_limit" ];
+then 
+    printf "Memory limit for plink calls: $plink_memory_limit \n"
+    plink_memory_limit=$( echo "--memory $plink_memory_limit" )
+fi
+
+
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
-# VJ: these checks may not be necessary as we have moved scripts to container
 if test ! -f get_related_ids.R ; then
         printf "\nCurrently in $PWD, but must be in a folder with the necessary scripts to run the GWAS QC! Please move to that folder and run this script again.
 
@@ -148,54 +150,49 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 
-if [ ${n_x} -le ${nx_threshold} ];
-then
-        printf "SKIP X-chromosome processing: too few X-chromosome SNPs (${n_x}) to process (threshold ${nx_threshold})\n";
-        xprocess_flag=0;
-fi
 
 #get output folder
 output_folder=${output_stem%/*}
 input_plinkset=${input_fileset##*/}
 
 ##### format plinkset: update varIDs #####
-	printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
-		#varID -> CHR:POS:REF:ALT
-	plinkset_in=${input_fileset}
-	plinkset_out=${output_folder}/${input_plinkset}_varID
-	awk '{print $1,$1"_"$4"_"$5"_"$6,$3,$4,$5,$6}' ${input_fileset}.bim > ${plinkset_out}_temp.bim
-	plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out}  > /dev/null
-	
-	printf " Input: ${plinkset_in}\n"
-	grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-	printf " Output: ${plinkset_out} \n\n"
+printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
+#varID -> CHR:POS:REF:ALT
+plinkset_in=${input_fileset}
+plinkset_out=${output_folder}/${input_plinkset}_varID
+awk '{print $1,$1"_"$4"_"$5"_"$6,$3,$4,$5,$6}' ${input_fileset}.bim > ${plinkset_out}_temp.bim
+plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
+
+printf " Input: ${plinkset_in}\n"
+grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+printf " Output: ${plinkset_out} \n\n"
+
+# long indel: smart pca limit 39 characters so keeping limit to 25
+plinkset_in=${plinkset_out}
+plinkset_out=${plinkset_in}_indel
+awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
+
+grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+grep -e ' people pass filters and QC' ${plinkset_out}.log
+printf "Output file: ${plinkset_out} \n\n"
 
 
-        # long indel: smart pca limit 39 characters so keeping limit to 25
-        plinkset_in=${plinkset_out}
-        plinkset_out=${plinkset_in}_indel
-        awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-        plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out}  > /dev/null
+#dups: only remove the duplicates keep the first variant(TODO keep with least missing)
+plinkset_in=${plinkset_out}
+plinkset_out=${plinkset_in}_dups
+awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+# dups marked
+plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out} >/dev/null
 
-        grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-        grep -e ' people pass filters and QC' ${plinkset_out}.log
-        printf "Output file: ${plinkset_out} \n\n"
-
-
-        #dups: only remove the duplicates keep the first variant(TODO keep with least missing)
-        plinkset_in=${plinkset_out}
-        plinkset_out=${plinkset_in}_dups
-                awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-        # dups marked
-        plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim --make-bed --out ${plinkset_out} >/dev/null
 if [ "$skip_flag" = false ];
 then		
 	plinkset_in=${plinkset_out}
         plinkset_out=${plinkset_in}Excl
 	# plink --bfile  ${plinkset_in} --exclude <( awk '{print $2}' ${plinkset_in}.bim | grep 'DUPS' | awk '{print $2}' ) \
 #--make-bed --out ${plinkset_out} >/dev/null
-	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in}  > /dev/null
-	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} >/dev/null
+	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in} $plink_memory_limit  > /dev/null
+	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} $plink_memory_limit >/dev/null
 	printf " Dupli/Multiplicate variants excluded: $(wc -l <${plinkset_in}.dupvar)\n"
 fi
         printf " Input: ${plinkset_in}\n"
@@ -207,7 +204,7 @@ fi
 ##### initial SNP filters #####
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
 output=$( printf ${output_stem}_geno05_maf01 )
-plink --bfile ${plinkset_out} --geno 0.05 --maf 0.01 --make-bed --out $output > /dev/null
+plink --bfile ${plinkset_out} --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 grep 'loaded from' $output.log  | sed  's/loaded from.*//' | head -n2
 grep -e 'missing genotype data' -e 'minor allele threshold' -e ' people pass filters and QC' $output.log
@@ -217,7 +214,7 @@ printf "Output file: $output \n\n"
 printf '%s\n' "Step 2: remove subjects w/ >1% missingness"
 output_last=$output
 output=${output}_mind01
-plink --bfile $output_last --mind 0.01 --make-bed --out $output > /dev/null
+plink --bfile $output_last --mind 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 grep -e 'removed due to missing genotype data' -e ' people pass filters and QC' $output.log
 printf "Output file: $output \n"
@@ -225,7 +222,7 @@ printf "Output file: $output \n"
 
 ##### Relatedness #####
 printf "\nStep 3: Calculate relatedness and remove related individuals\n"
-plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness > /dev/null
+plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness $plink_memory_limit > /dev/null
 
 
 #print out # or related individuals at each threshold
@@ -249,7 +246,7 @@ Rscript get_related_ids.R ${output}_relatedness
 printf "Removing $( wc -l ${output}_relatedness_related_ids.txt ) individuals for relatedness.\n"
 output_last=$output
 output=${output}_norelated
-plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output > /dev/null
+plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output $plink_memory_limit > /dev/null
 grep ' people pass filters and QC' $output.log
 printf "Output file: $output \n"
 
@@ -261,13 +258,13 @@ if [ "$( awk '{ print $3 }' $sex_file | sort -u | tr -d '[:space:]' )" != 0 ];
 then
     output_last=$output
     output=${output}_sex
-    plink --bfile $output_last --update-sex $sex_file --make-bed --out $output > /dev/null
+    plink --bfile $output_last --update-sex $sex_file --make-bed --out $output $plink_memory_limit > /dev/null
     printf "Updated sex from the provided file: $sex_file \n"
 else
     printf "No non-missing sex information in the provided file (${sex_file}). Using sex from fam file.\n"
 fi
 #do the check
-plink --bfile $output --check-sex --out ${output}_checking_sex > /dev/null
+plink --bfile $output --check-sex --out ${output}_checking_sex $plink_memory_limit > /dev/null
 grep -e 'check-sex: ' ${output}_checking_sex.log
 
 
@@ -283,7 +280,7 @@ then
     sex_mismatch_file=${output}_mismatched_sex_ids.txt
     output_last=$output
     output=${output}_nomismatchedsex
-    plink --bfile $output_last --remove ${sex_mismatch_file} --make-bed --out $output > /dev/null
+    plink --bfile $output_last --remove ${sex_mismatch_file} --make-bed --out $output $plink_memory_limit > /dev/null
     grep -e ' people pass filters and QC' ${output}.log
     printf "Output file: $output \n"
 fi
@@ -319,7 +316,7 @@ printf "\n merge and split the genotype on build ${build} coordinates preparing 
     plinkset_x_out=${plinkset_x_in}_mergeX
     printf " Input: ${plinkset_x_in}\n"
     printf " Output: ${plinkset_x_out}\n"
-    plink --bfile ${plinkset_x_in} --merge-x no-fail --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+    plink --bfile ${plinkset_x_in} --merge-x no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
     grep -e 'merge-x: ' ${plinkset_x_out}.log ||
     printf " --merge-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
@@ -328,7 +325,7 @@ printf "\n merge and split the genotype on build ${build} coordinates preparing 
     plinkset_x_out=${plinkset_x_in}_splitX
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out} \n"
-    plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+    plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
     grep -e 'split-x: ' ${plinkset_x_out}.log ||
     printf " --split-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
@@ -342,14 +339,14 @@ then
 else
     printf "\n Confirm no hh warning for females only selection below: 'Warning: ... het. haploid genotypes present' \n"
     # will have issues with males only cohort. skip this for male only
-    plink --bfile ${plinkset_x_out} --filter-females --freq --memory 15000 --out ${plinkset_x_out} > /dev/null
+    plink --bfile ${plinkset_x_out} --filter-females --freq $plink_memory_limit --out ${plinkset_x_out} > /dev/null
 fi
 
 # set hh missing
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_out}_nohh
 printf "\n set het. haploid genotypes missing in ${plinkset_x_out}\n"
-plink --bfile ${plinkset_x_in} --set-hh-missing --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+plink --bfile ${plinkset_x_in} --set-hh-missing --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 printf "Input file: ${plinkset_x_in} \n"
 printf "Output file: ${plinkset_x_out} \n\n"
 
@@ -362,7 +359,7 @@ plinkset_x_out=${plinkset_x_first}_X
 #subset to X-chr SNPS (X:23, Y: 24, XY:25, mitochondria:26)
 # TODO: * need to confirm if chr is not coded as X instead of 23
 #       * may need to split-x before subsetting (confirm)
-plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out}\n"
 grep -e ' people pass filters and QC.' ${plinkset_x_out}.log
@@ -404,13 +401,13 @@ else
             #VJ: since we have the sex as pheno type we can generate case-control frequency
                     #we get: ${plinkset_x_out}.frq
             printf "Generate case-control phenotype-stratified allele frequency report with sex as phenotype: ${plinkset_x_out}.frq.cc \n"
-            plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --freq case-control --out ${plinkset_x_out} --memory 15000 > /dev/null
+            plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --freq case-control --out ${plinkset_x_out} $plink_memory_limit > /dev/null
                     #we get: ${plinkset_x_out}.frq.cc
             # generating genotype count report
             printf " Generating genotype count report: ${plinkset_x_out}.frqx \n"
-            plink --bfile ${plinkset_x_out} --freqx --out ${plinkset_x_out} --memory 15000 > /dev/null
+            plink --bfile ${plinkset_x_out} --freqx --out ${plinkset_x_out} $plink_memory_limit > /dev/null
             printf " Generating basic allele frequency report: ${plinkset_x_out}.frq \n"
-            plink --bfile ${plinkset_x_out} --freq --out ${plinkset_x_out} --memory 15000 > /dev/null
+            plink --bfile ${plinkset_x_out} --freq --out ${plinkset_x_out} $plink_memory_limit > /dev/null
             awk 'function abs(x){return ((x < 0.0) ? -x : x)} {print $0, abs($5-$6)}' OFS='\t' ${plinkset_x_out}.frq.cc | \
             awk '$9>0.02 {print $2}' > ${plinkset_x_out}_MAFdiff02_to_exclude.txt
 
@@ -421,7 +418,7 @@ else
             plinkset_x_in=${plinkset_x_out}
             plinkset_x_out=${plinkset_x_in}_MAFdiff02
 
-            plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_MAFdiff02_to_exclude.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+            plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_MAFdiff02_to_exclude.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
                 printf " Input: ${plinkset_x_in} \n"
                 printf " Output: ${plinkset_x_out} \n"
             grep -e "people pass filters and QC." ${plinkset_x_out}.log
@@ -437,7 +434,7 @@ else
         awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno.fam
         printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
         # generate male-female diff miss stats
-        plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --test-missing --out ${plinkset_x_out}_diffmiss --memory 15000 > /dev/null
+        plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
         grep -B4 "... done" ${plinkset_x_out}_diffmiss.log
         # drop SNPs with P < 0.0000001
         awk '$5 <= 0.0000001{print $2}' ${plinkset_x_out}_diffmiss.missing > ${plinkset_x_out}_diffmiss_to_drop.txt
@@ -445,7 +442,7 @@ else
 
         plinkset_x_in=${plinkset_x_out}
         plinkset_x_out=${plinkset_x_in}_e7diffmiss
-        plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+        plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
             printf " Input: ${plinkset_x_in} \n"
             printf " Output: ${plinkset_x_out} \n"
         grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
@@ -472,8 +469,8 @@ else
         printf " PS: plink requires autosomal chromosome for --het calculations,  using dog as species to treat X-chromosome as autosomal for this step.
          and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
         ## filter males and prune set (removed --filter-males flag)
-        #plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
-        plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune --memory 15000 > /dev/null
+        #plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
+        plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
         plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in --make-bed --out ${plinkset_x_out}_pruned > /dev/null
         rm ${plinkset_x_out}_prune.*
         printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
@@ -492,7 +489,7 @@ else
         then
             plinkset_x_in=${plinkset_x_out}
             plinkset_x_out=${plinkset_x_out}_nohetout
-            plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+            plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
             printf " Input: ${plinkset_x_in} \n"
             grep -e ' people pass filters and QC' ${plinkset_x_out}.log
             printf "Output: ${plinkset_x_out} \n"
@@ -511,7 +508,7 @@ printf "\n individuals in final autosomal dataset(individual list: ${plinkset_x_
 
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_in}_noout
-plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out} \n"
 printf "removed individuals based on autosomal PC plots and heterozygocity outliers (and for restrict to NHW individuals), plinkset:\n ${plinkset_x_out}\n"
@@ -525,13 +522,13 @@ else
         plinkset_x_in=${plinkset_x_out}
         plinkset_x_out=${plinkset_x_in}_1e6femHWE
         # get SNPS out of HWE in females
-        plink --bfile ${plinkset_x_in} --filter-females --hwe 0.000001 --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+        plink --bfile ${plinkset_x_in} --filter-females --hwe 0.000001 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
         awk '{print $2}' ${plinkset_x_out}.bim > ${plinkset_x_out}_SNPs.txt
                 printf " Input: ${plinkset_x_in} \n"
         grep -e 'variants loaded from .bim file' ${plinkset_x_out}.log
         grep -e ' removed due to Hardy-Weinberg exact test.' ${plinkset_x_out}.log
         #grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
-        plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out}_SNPs.txt --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+        plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
         grep -e 'extract:' ${plinkset_x_out}.log
         grep -e 'variants loaded from .bim file' ${plinkset_x_out}.log
         grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
@@ -539,7 +536,7 @@ else
 fi
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${output_stem}
-plink --bfile ${plinkset_x_in} --make-bed --out ${plinkset_x_out} --memory 15000 > /dev/null
+plink --bfile ${plinkset_x_in} --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 printf " Input: ${plinkset_x_in} \n"
 grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
     printf " Output: ${plinkset_x_out} \n"
