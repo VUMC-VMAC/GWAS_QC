@@ -371,59 +371,26 @@ printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_
 #printf "check: ${n_par} SNPs in PARs left.(should be = 0)\n"
 
 #### STEP 4 ####
-# confirm sex is updated
-n_sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | wc -l)
-sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') 
-if [ $n_sex -ne 2 ];
-then
-printf "\n ERROR: sex not proper/updated in fam:
-${plinkset_x_out}.fam , 1=Male, 2=Female;
-$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc )\n"
-        #exit 1;
-fi
+############## This step occurs above and erroring was already commented out here. 
+## confirm sex is updated
+#n_sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | wc -l)
+#sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') 
+#if [ $n_sex -ne 2 ];
+#then
+#printf "\n ERROR: sex not proper/updated in fam:
+#${plinkset_x_out}.fam , 1=Male, 2=Female;
+#$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc )\n"
+#        #exit 1;
+#fi
 
 # update pheno with sex
 # create new fam file to use
-awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno.fam
+awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno
+plink --bfile ${plinkset_x_out}
 printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
+######################### Just update the plink set with this so that the rest of the script is less complicated. 
 
-#### male-female differential MAF : delta > 0.02 ####
-if [ $skip_sexMAF = "yes" ]
-then
-            printf "\nSkipping Step 4: #### male-female differential MAF : delta > 0.02 #### \n"
-else
-    if [  $n_sex -eq 1 | ];
-    then
-            printf "\nSkipping Step 4: #### male-female differential MAF : delta > 0.02 #### \n"
-            printf "\n Only one sex present \n"
-    else
-            printf "\nStep 4: #### male-female differential MAF : delta > 0.02 #### \n"
-            #VJ: since we have the sex as pheno type we can generate case-control frequency
-                    #we get: ${plinkset_x_out}.frq
-            printf "Generate case-control phenotype-stratified allele frequency report with sex as phenotype: ${plinkset_x_out}.frq.cc \n"
-            plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --freq case-control --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-                    #we get: ${plinkset_x_out}.frq.cc
-            # generating genotype count report
-            printf " Generating genotype count report: ${plinkset_x_out}.frqx \n"
-            plink --bfile ${plinkset_x_out} --freqx --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-            printf " Generating basic allele frequency report: ${plinkset_x_out}.frq \n"
-            plink --bfile ${plinkset_x_out} --freq --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-            awk 'function abs(x){return ((x < 0.0) ? -x : x)} {print $0, abs($5-$6)}' OFS='\t' ${plinkset_x_out}.frq.cc | \
-            awk '$9>0.02 {print $2}' > ${plinkset_x_out}_MAFdiff02_to_exclude.txt
 
-            printf "total x-chr SNPs: $( awk '$1==23{print}' ${plinkset_x_out}.frq.cc | wc -l) \n"
-            printf "x-chr SNPs to exclude for male-female MAF difference of greater than 0.02: \
-            $( wc -l < ${plinkset_x_out}_MAFdiff02_to_exclude.txt)\n"
-
-            plinkset_x_in=${plinkset_x_out}
-            plinkset_x_out=${plinkset_x_in}_MAFdiff02
-
-            plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_MAFdiff02_to_exclude.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-                printf " Input: ${plinkset_x_in} \n"
-                printf " Output: ${plinkset_x_out} \n"
-            grep -e "people pass filters and QC." ${plinkset_x_out}.log
-    fi
-fi
 ##### diffential missingness calculations #####
 if [  $n_sex -eq 1 ];
 then
@@ -431,11 +398,13 @@ then
         printf "\n Only one sex present \n"
 else
         printf "\nStep 5: ##### diffential missingness calculations #####  \n"
-        awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno.fam
-        printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
+######### This was already done earlier
+#        awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno.fam
+#        printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
         # generate male-female diff miss stats
         plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
-        grep -B4 "... done" ${plinkset_x_out}_diffmiss.log
+#	# this is printing out 4 lines before the match
+#        grep -B4 "... done" ${plinkset_x_out}_diffmiss.log
         # drop SNPs with P < 0.0000001
         awk '$5 <= 0.0000001{print $2}' ${plinkset_x_out}_diffmiss.missing > ${plinkset_x_out}_diffmiss_to_drop.txt
         printf "\n male-female diff miss SNPs with P < 0.0000001(1e-7) dropped: $(wc -l < ${plinkset_x_out}_diffmiss_to_drop.txt)\n"
@@ -443,59 +412,13 @@ else
         plinkset_x_in=${plinkset_x_out}
         plinkset_x_out=${plinkset_x_in}_e7diffmiss
         plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-            printf " Input: ${plinkset_x_in} \n"
-            printf " Output: ${plinkset_x_out} \n"
+        printf " Input: ${plinkset_x_in} \n"
+        printf " Output: ${plinkset_x_out} \n"
         grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
 
 fi
-# skipping as autosomal QC is taking care of heterozygocity outliers
-# printf "\nStep6: #### skipping heterozygocity check (males only?,skipping as autosomal QC is taking care of heterozygocity outliers and\n --het requires autosomal ####\n"
 
 
-##### heterozygocity check (males only?, using all for now) #####
-if [ ${skip_heterozygocity_outlier_check}="yes" ]
-then 
-    printf "\nSkipping Step6: Heterozygocity outlier check \n"
-else
-  if [  $n_sex -eq 1 ] && [ ${sex} -eq 2 ];
-  then
-        printf "\nSkipping Step6: #### Heterozygocity check (males only) #### \n"
-        printf "\n Only females or other sex present \n"
-  else
-
-
-        #printf "\nStep6: #### Heterozygocity check (males only?, using all for now) ####\n"
-        printf "\nStep6: #### Heterozygocity check (males only) #### \n"
-        printf " PS: plink requires autosomal chromosome for --het calculations,  using dog as species to treat X-chromosome as autosomal for this step.
-         and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
-        ## filter males and prune set (removed --filter-males flag)
-        #plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
-        plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
-        plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in --make-bed --out ${plinkset_x_out}_pruned > /dev/null
-        rm ${plinkset_x_out}_prune.*
-        printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
-
-
-        ###### heterozygosity check #####
-        # using "dog" as species to treat X as autosomal and overcome "Error: --het requires at least one polymorphic autosomal marker."
-        plink --bfile ${plinkset_x_out}_pruned --het --dog --out ${plinkset_x_out}_pruned_hetcheck > /dev/null
-        ##plot and check for outliers
-        Rscript plot_het_check_outliers.R ${plinkset_x_out}_pruned_hetcheck
-        printf "Heterozygocity outliers(X-chr, males only) review figure: ${plinkset_x_out}_pruned_hetcheck.png \n"
-
-
-        #if there are outliers >6 sd from the F stat mean, remove them
-        if [ -f "${plinkset_x_out}_pruned_hetcheck_outliers.txt" ];
-        then
-            plinkset_x_in=${plinkset_x_out}
-            plinkset_x_out=${plinkset_x_out}_nohetout
-            plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-            printf " Input: ${plinkset_x_in} \n"
-            grep -e ' people pass filters and QC' ${plinkset_x_out}.log
-            printf "Output: ${plinkset_x_out} \n"
-        fi
-  fi
-fi
 ##### Step 7: Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals) #####
 printf "\nStep 7: #### Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals)  #### \n"
 # skip for now as need to figure out how to pass this file that requires manual intervention
