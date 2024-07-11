@@ -117,7 +117,6 @@ then
     exit 1
 fi
 
-
 # print message for input build
 if [ -z ${build} ]
 then
@@ -134,6 +133,8 @@ then
     plink_memory_limit=$( echo "--memory $plink_memory_limit" )
 fi
 
+
+############### add check to make sure there is self-report sex present. If this is not present we cannot validate the correspondence of genotypes to phenotypes, so it makes sense to make this a requirement (although this is not a requirement for autosomal QC). 
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ; then
@@ -292,6 +293,7 @@ sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}
 
 if [ $n_sex -ne 2 ];
 then
+  ####################### make this an error? but earlier in the pipeline
   printf "\n Warning: more or less than 2 sexes found in fam:
   ${plinkset_x_out}.fam , 1=Male, 2=Female;
   $(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc )\n"
@@ -384,31 +386,27 @@ printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_
 #fi
 
 # update pheno with sex
-# create new fam file to use
-awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno
-plink --bfile ${plinkset_x_out}
-printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
-######################### Just update the plink set with this so that the rest of the script is less complicated. 
+printf "Updating phenotype in plink files to correspond to sex...\n"
+plinkset_x_in=${plinkset_x_out}
+plinkset_x_out=${plinkset_x_out}_sexpheno
+awk -F ' ' '{print $1,$2,$5}' ${plinkset_x_in}.fam > ${plinkset_x_out}.txt
+plink --bfile ${plinkset_x_in} --make-pheno 2 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
 
 ##### diffential missingness calculations #####
 if [  $n_sex -eq 1 ];
 then
-        printf "\nSkipping Step 5: ##### diffential missingness calculations #####  \n"
+        printf "\nSkipping Step 5: diffential missingness calculations #####  \n"
         printf "\n Only one sex present \n"
 else
         printf "\nStep 5: ##### diffential missingness calculations #####  \n"
-######### This was already done earlier
-#        awk -F ' ' '{print $1,$2,$3,$4,$5,$5}' ${plinkset_x_out}.fam > ${plinkset_x_out}_pheno.fam
-#        printf "\n modified fam: updated phenotype in ${plinkset_x_out}_pheno.fam with sex \n"
         # generate male-female diff miss stats
-        plink --bed ${plinkset_x_out}.bed --bim ${plinkset_x_out}.bim --fam ${plinkset_x_out}_pheno.fam --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
-#	# this is printing out 4 lines before the match
-#        grep -B4 "... done" ${plinkset_x_out}_diffmiss.log
+        plink --bfile ${plinkset_x_out} --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
         # drop SNPs with P < 0.0000001
+	## generate list of variants
         awk '$5 <= 0.0000001{print $2}' ${plinkset_x_out}_diffmiss.missing > ${plinkset_x_out}_diffmiss_to_drop.txt
         printf "\n male-female diff miss SNPs with P < 0.0000001(1e-7) dropped: $(wc -l < ${plinkset_x_out}_diffmiss_to_drop.txt)\n"
-
+	## remove using plink
         plinkset_x_in=${plinkset_x_out}
         plinkset_x_out=${plinkset_x_in}_e7diffmiss
         plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
