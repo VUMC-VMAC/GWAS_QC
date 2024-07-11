@@ -52,14 +52,6 @@ while getopts 'o:i:f:b:p:sh' flag; do
   esac
 done
 
-
-# X-chromosome # of SNP's threshold
-nx_threshold=300
-skip_sexMAF="yes"
-skip_heterozygocity_outlier_check="yes"
-x_process_flag=1
-
-
 #check to make sure necessary arguments are present
 if [ -z "$output_stem" ] || [ -z "$input_fileset" ] || [ -z "$sex_file" ] ;
 then
@@ -98,23 +90,25 @@ Step8: [if females are present] Hardy Weinberg equilibrium(HWE) 1e6 (based on fe
         drop SNPS in both males and females that are out of HWE."
 
 
-# get X-chromosome SNP count
-n_x=$(awk '$1==23{print}' ${input_fileset}.bim | wc -l)
-
 #print out inputs
 printf "GWAS QC for X Chromosome Preimputation 
 
 Input data : $input_fileset
 Output stem : $output_stem
 File with sex information : $sex_file
-Number of X-chromosome SNPs: ${n_x}
 "
+
+# get X-chromosome SNP count
+n_x=$(awk '$1==23{print}' ${input_fileset}.bim | wc -l)
 
 if [[ ${n_x} -lt 300 ]]; 
 then
     # updated this to simply fail and exit since there is no point in attempting QC with fewer than this number of variants
     printf "%s\n" "ERROR: too few X-chromosomes to perform QC";
     exit 1
+else
+    # print out the number of X chromosome variants for QC
+    printf "Number of X-chromosome SNPs: ${n_x}\n"
 fi
 
 # print message for input build
@@ -422,17 +416,16 @@ printf "\nStep 7: #### Remove individuals based on autosomal PCs and heterozygoc
 # skip for now as need to figure out how to pass this file that requires manual intervention
 # (Done: required as input)VJ need to get the final plinkset from autosomal processing
 
-
 #plinkset_autosomal_part1=${ds}_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_nooutliers
-awk '{print $1,$2}' ${ds_plinkset}.fam > ${plinkset_x_out}_ind_to_keep.txt
-printf "\n individuals in final autosomal dataset(individual list: ${plinkset_x_out}_ind_to_keep.txt): $(wc -l < ${plinkset_x_out}_ind_to_keep.txt) \n"
+#awk '{print $1,$2}' ${ds_plinkset}.fam > ${plinkset_x_out}_ind_to_keep.txt
+printf "\n individuals in final autosomal dataset: $(wc -l < ${ds_plinkset}.fam) \n"
 
 plinkset_x_in=${plinkset_x_out}
-plinkset_x_out=${plinkset_x_in}_noout
-plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+plinkset_x_out=${plinkset_x_in}_noout ##################### This should have a better name
+plink --bfile ${plinkset_x_in} --keep ${ds_plinkset}.fam --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
     printf " Input: ${plinkset_x_in} \n"
     printf " Output: ${plinkset_x_out} \n"
-printf "removed individuals based on autosomal PC plots and heterozygocity outliers (and for restrict to NHW individuals), plinkset:\n ${plinkset_x_out}\n"
+#printf "removed individuals based on autosomal PC plots and heterozygocity outliers (and for restrict to NHW individuals), plinkset:\n ${plinkset_x_out}\n"
 #### Step 8: Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX ####
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
 then
@@ -441,24 +434,21 @@ then
 else
         printf "\nStep 8: #### Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX #### \n"
         plinkset_x_in=${plinkset_x_out}
-        plinkset_x_out=${plinkset_x_in}_1e6femHWE
+        plinkset_x_out_fem=${plinkset_x_in}_1e6femHWE
+	plinkset_x_out=${plinkset_x_in}_femHWE6
         # get SNPS out of HWE in females
-        plink --bfile ${plinkset_x_in} --filter-females --hwe 0.000001 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-        awk '{print $2}' ${plinkset_x_out}.bim > ${plinkset_x_out}_SNPs.txt
-                printf " Input: ${plinkset_x_in} \n"
-        grep -e 'variants loaded from .bim file' ${plinkset_x_out}.log
-        grep -e ' removed due to Hardy-Weinberg exact test.' ${plinkset_x_out}.log
-        #grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
-        plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+        plink --bfile ${plinkset_x_in} --filter-females --hwe 0.000001 --make-just-bim --out ${plinkset_x_out_fem} $plink_memory_limit > /dev/null
+        awk '{print $2}' ${plinkset_x_out_fem}.bim > ${plinkset_x_out_fem}_SNPs.txt
+        plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out_fem}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
         grep -e 'extract:' ${plinkset_x_out}.log
         grep -e 'variants loaded from .bim file' ${plinkset_x_out}.log
         grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
         printf " Output: ${plinkset_x_out} \n"
 fi
-plinkset_x_in=${plinkset_x_out}
-plinkset_x_out=${output_stem}
-plink --bfile ${plinkset_x_in} --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-printf " Input: ${plinkset_x_in} \n"
-grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
-    printf " Output: ${plinkset_x_out} \n"
-printf "\n Final X-chromosome plinkset:\n ${plinkset_x_out} \n Part 1 ... Done! \n"
+
+
+############################# insert preparation for imputation
+
+# make final file
+plink --bfile ${plinkset_x_out} --make-bed --out ${output_stem} $plink_memory_limit > /dev/null
+printf "\n Final X-chromosome plinkset:\n ${output_stem} \n Part 1 ... Done! \n"
