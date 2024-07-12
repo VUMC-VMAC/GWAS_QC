@@ -528,39 +528,6 @@ fi
 sed -i "s|rm TEMP|rm ${output_folder}/TEMP|" ${output_folder}/Run-plink.sh
 sh ${output_folder}/Run-plink.sh > /dev/null 2>&1
 
-
-##### Subset to Overlapping SNPs between sexes #####
-printf "\nStep: Subset to Overlapping SNPs between sexes \n\n"
-output=${output_stem}-updated-chr23
-
-# skip overlapping SNP step for single sex dataset
-n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
-sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | awk '{print $2}') 
-if [ $n_sex -ne 2 ];
-then
-    printf "Warning: single sex dataset skipping subset to overlapping SNPs between sexes \n"
-    printf "N sexes: $n_sex, sex code: $sex \n"
-else
-    plink --bfile ${output} --filter-females --geno 0.01 --write-snplist --out ${output}_females $plink_memory_limit > /dev/null
-    plink --bfile ${output} --filter-males --geno 0.01 --write-snplist --out ${output}_males $plink_memory_limit > /dev/null
-    # sort those files and get overlapping variant IDs        
-    cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
-    cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
-    comm -12 ${output}_males_sorted.snplist ${output}_females_sorted.snplist  > ${output}_overlapping_SNPs.txt
- 
-    # Keep the allele order defined in the .bim file,instead of forcing A2 to be the major allele.--real-ref-alleles also removes 'PR' from the INFO values emitted by --recode vcf{-fid/-iid}.
-    ## there was a filter (--chr 23) here but it was removed because there already should just be chr 23 variants present here
-    output_last=$output
-    output=${output}_overlap
-    plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles --make-bed --out ${output} $plink_memory_limit > /dev/null
-    printf "Output: ${output} \n"
-    printf " female SNPs: $(wc -l < ${output_last}_female_snps.txt) \n"
-    printf " male SNPs: $(wc -l < ${output_last}_male_snps.txt) \n"
-    printf " Overlapping SNPs in both sexes: $(wc -l < ${output_last}_overlapping_SNPs.txt) \n"
-    grep -e ' people pass filters and QC' ${output}.log
-
-fi
-
 printf "\n update variant IDs to TOPMED imputation server format chrX:POS:REF:ALT \n"
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 output_last=$output
