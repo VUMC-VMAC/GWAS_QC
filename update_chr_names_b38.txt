@@ -20,3 +20,4 @@
 20 chr20
 21 chr21
 22 chr22
+23 chrX
