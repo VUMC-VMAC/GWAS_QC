@@ -18,7 +18,7 @@ display_usage() {
 Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation. The phenotype column in .fam is updated with sex in process.
 
 Usage:
-gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -p [ds_plinkset] -m [plink_memory_limit] -s -R [ref_file]
+gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -m [plink_memory_limit] -s -R [ref_file]
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -27,8 +27,6 @@ input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
 ref_file = the full file path and name for the reference panel
-
--p = autosomal plinkset stem with IID and FID matching the input plinkset and PC outliers removed
 
 -b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the x-chromosome split step.
 
@@ -40,13 +38,13 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
         }
 
 skip_flag='false'
-while getopts 'o:i:f:b:p:R:sh' flag; do
+while getopts 'o:i:f:b:R:m:sh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
-    p) ds_plinkset="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
+    m) plink_memory_limit="${OPTARG}" ;;
     R) ref_file="${OPTARG}" ;;
     s) skip_flag='true' ;;
     h) display_usage ; exit ;;
@@ -388,7 +386,7 @@ printf "Updating phenotype in plink files to correspond to sex...\n"
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_out}_sexpheno
 awk -F ' ' '{print $1,$2,$5}' ${plinkset_x_in}.fam > ${plinkset_x_out}.txt
-plink --bfile ${plinkset_x_in} --make-pheno 2 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+plink --bfile ${plinkset_x_in} --make-pheno ${plinkset_x_out}.txt 2 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
 
 ##### diffential missingness calculations #####
@@ -420,16 +418,7 @@ printf "\nStep 7: #### Remove individuals based on autosomal PCs and heterozygoc
 # skip for now as need to figure out how to pass this file that requires manual intervention
 # (Done: required as input)VJ need to get the final plinkset from autosomal processing
 
-#plinkset_autosomal_part1=${ds}_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_nooutliers
-#awk '{print $1,$2}' ${ds_plinkset}.fam > ${plinkset_x_out}_ind_to_keep.txt
-printf "\n individuals in final autosomal dataset: $(wc -l < ${ds_plinkset}.fam) \n"
 
-plinkset_x_in=${plinkset_x_out}
-plinkset_x_out=${plinkset_x_in}_noout ##################### This should have a better name
-plink --bfile ${plinkset_x_in} --keep ${ds_plinkset}.fam --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-    printf " Input: ${plinkset_x_in} \n"
-    printf " Output: ${plinkset_x_out} \n"
-#printf "removed individuals based on autosomal PC plots and heterozygocity outliers (and for restrict to NHW individuals), plinkset:\n ${plinkset_x_out}\n"
 #### Step 8: Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX ####
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
 then
@@ -456,12 +445,12 @@ fi
 printf "\nStep 2: Removing palindromic variants \n"
 
 #get palindromic variants
-awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${plinkset_x_out}.bim > ${output_path}/palindromic_snps.txt
+awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${plinkset_x_out}.bim > ${output_folder}/palindromic_snps.txt
 #remove them
 output_last=$plinkset_x_out
 output=${plinkset_x_out}_nopal
-plink --bfile $output_last --exclude ${output_path}/palindromic_snps.txt --output-chr M --make-bed --out $output > /dev/null
-printf "Removed $( wc -l < ${output_path}/palindromic_snps.txt ) palindromic variants.\n"
+plink --bfile $output_last --exclude ${output_folder}/palindromic_snps.txt --output-chr M --make-bed --out $output > /dev/null
+printf "Removed $( wc -l < ${output_folder}/palindromic_snps.txt ) palindromic variants.\n"
 grep ' people pass filters and QC' ${output}.log
 printf "Output file: $output \n"
 
@@ -505,7 +494,7 @@ fi
 #### remove same-position variants ####
 
 printf "\nStep 4: Removing multi-allelic and duplicated variants.\n"
-awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_path}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
+awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_folder}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 
 if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
 then
@@ -531,13 +520,13 @@ perl HRC-1000G-check-bim.pl -b ${output_stem}.bim  -f ${output_stem}.frq -r ${re
 #if noexclude, then skip the exclusion step in the plink file
 if [ "$noexclude" = true ];
 then
-    sed -i -e '1s/.*/#&/' -e "s|${output_path}/TEMP1|${output_stem}|g" ${output_path}/Run-plink.sh
+    sed -i -e '1s/.*/#&/' -e "s|${output_folder}/TEMP1|${output_stem}|g" ${output_folder}/Run-plink.sh
 fi
 
 #run created script with all the plink commands
 #muting all output since this will throw quite a few warnings if there are any funky alleles
-sed -i "s|rm TEMP|rm ${output_path}/TEMP|" ${output_path}/Run-plink.sh
-sh ${output_path}/Run-plink.sh > /dev/null 2>&1
+sed -i "s|rm TEMP|rm ${output_folder}/TEMP|" ${output_folder}/Run-plink.sh
+sh ${output_folder}/Run-plink.sh > /dev/null 2>&1
 
 
 ##### Subset to Overlapping SNPs between sexes #####
@@ -557,7 +546,7 @@ else
     # sort those files and get overlapping variant IDs        
     cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
     cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
-    comm -12 ${output}_males.snplist ${output}_females.snplist  > ${output}_overlapping_SNPs.txt
+    comm -12 ${output}_males_sorted.snplist ${output}_females_sorted.snplist  > ${output}_overlapping_SNPs.txt
  
     # Keep the allele order defined in the .bim file,instead of forcing A2 to be the major allele.--real-ref-alleles also removes 'PR' from the INFO values emitted by --recode vcf{-fid/-iid}.
     ## there was a filter (--chr 23) here but it was removed because there already should just be chr 23 variants present here
@@ -593,16 +582,16 @@ grep -e ' people pass filters and QC' ${output}.log
 
 #update chr code to have chr# rather than just #, sort and output vcf
 printf "Sorting vcf and updating chromosome code for imputation server...\n"
-mkdir ${output_path}/tmpX/
-bcftools annotate --rename-chrs update_chr_names_b38.txt ${output}.vcf | bcftools sort --temp-dir  ${output_path}/tmpX/ -O z -o ${output}_chrX.vcf.gz > /dev/null
+mkdir ${output_folder}/tmpX/
+bcftools annotate --rename-chrs update_chr_names_b38.txt ${output}.vcf | bcftools sort --temp-dir  ${output_folder}/tmpX/ -O z -o ${output}_chrX.vcf.gz > /dev/null
 printf "Sorting complete.\n\n"
 
 #print out number of variants actually excluded or which would have been excluded
 if [ "$noexclude" = true ];
 then 
-    printf "Would have removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}-updated-chr23_overlap.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+    printf "Would have removed $( cat ${output_folder}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}-updated-chr23_overlap.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
 else
-    printf "Removed $( cat ${output_path}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}-updated-chr23_overlap.bim | wc -l ) for imputation.\n"
+    printf "Removed $( cat ${output_folder}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}-updated-chr23_overlap.bim | wc -l ) for imputation.\n"
 fi
 
 # commenting this out to prevent removal of files that ought to be kept
@@ -610,8 +599,8 @@ fi
 ##make sure that it only removes the files from running this script, not the initial files or files for other datsets
 #if [ "$skip_cleanup" = false ];
 #then
-#    rm ${output_path}/*.vcf
-#    files_to_remove=$( find ${output_path}/${input_stem}*.bed | grep -v "${output}.bed" | grep -v "${output_stem}-updated.bed" )
+#    rm ${output_folder}/*.vcf
+#    files_to_remove=$( find ${output_folder}/${input_stem}*.bed | grep -v "${output}.bed" | grep -v "${output_stem}-updated.bed" )
 #    rm $files_to_remove
 #else
 #    printf "Skipping cleanup. Please manually remove unnecessary files.\n"
