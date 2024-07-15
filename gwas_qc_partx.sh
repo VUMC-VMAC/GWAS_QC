@@ -153,54 +153,44 @@ output_folder=${output_stem%/*}
 input_plinkset=${input_fileset##*/}
 
 ###### format plinkset: update varIDs #####
-#printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
-##varID -> CHR:POS:REF:ALT
-#plinkset_in=${input_fileset}
-#plinkset_out=${output_folder}/${input_plinkset}_varID
-#awk '{print $1,$1"_"$4"_"$5"_"$6,$3,$4,$5,$6}' ${input_fileset}.bim > ${plinkset_out}_temp.bim
-#plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
+printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
+#varID -> CHR:POS:REF:ALT
+output=${output_folder}/${input_plinkset}_stdnames
+## generate an ID with just variant info rather than rsID and shorten IDs that are too long
+awk '{if( length($5)>25 || length($6)>25) { print $2,$1"_"$4"_I_D"} else {print $2,$1"_"$4"_"$5"_"$6} }' ${input_fileset}.bim > ${output}.txt
+## update using plink
+plink --bfile ${input_fileset} --update-name ${output}.txt $plink_memory_limit --make-bed --out ${output}  > /dev/null
 
-#printf " Input: ${plinkset_in}\n"
-#grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-#printf " Output: ${plinkset_out} \n\n"
+printf " Input: ${input_fileset}\n"
+grep 'loaded from' ${output}.log  | sed  's/loaded from.*//' | head -n2
+printf " Output: ${output} \n\n"
 
-## long indel: smart pca limit 39 characters so keeping limit to 25
-#plinkset_in=${plinkset_out}
-#plinkset_out=${plinkset_in}_indel
-#awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-#plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
-
-#grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-#grep -e ' people pass filters and QC' ${plinkset_out}.log
-#printf "Output file: ${plinkset_out} \n\n"
-
-
-##dups: only remove the duplicates keep the first variant(TODO keep with least missing)
-#plinkset_in=${plinkset_out}
-#plinkset_out=${plinkset_in}_dups
-#awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+#dups: only remove the duplicates keep the first variant(TODO keep with least missing)
+output_last=${output}
+output=${output}_dups
+awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${output_last}.bim > ${output}_temp.bim
 ## dups marked
-#plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out} >/dev/null
+plink --fam  ${output_last}.fam --bed  ${output_last}.bed --bim ${output}_temp.bim $plink_memory_limit --make-bed --out ${output} >/dev/null
 
-#if [ "$skip_flag" = false ];
-#then		
-#	plinkset_in=${plinkset_out}
-#        plinkset_out=${plinkset_in}Excl
-#	# plink --bfile  ${plinkset_in} --exclude <( awk '{print $2}' ${plinkset_in}.bim | grep 'DUPS' | awk '{print $2}' ) --make-bed --out ${plinkset_out} >/dev/null
-#	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in} $plink_memory_limit  > /dev/null
-#	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} $plink_memory_limit >/dev/null
-#	printf " Dupli/Multiplicate variants excluded: $(wc -l <${plinkset_in}.dupvar)\n"
-#fi
-#        printf " Input: ${plinkset_in}\n"
-#        grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-#        grep -e ' people pass filters and QC' ${plinkset_out}.log
-#        printf "Output file: ${plinkset_out} \n\n"
+if [ "$skip_flag" = false ];
+then
+	output_last=${output}
+        output=${output}Excl
+	plink --bfile ${output_last} --list-duplicate-vars suppress-first -out ${output_last} $plink_memory_limit  > /dev/null
+	plink --bfile ${output_last} --exclude ${output_last}.dupvar --make-bed --out ${output} $plink_memory_limit >/dev/null
+	printf "Dupli/Multiplicate variants excluded: $(wc -l <${output_last}.dupvar)\n"
+fi
+
+printf " Input: ${output_last}\n"
+grep 'loaded from' ${output}.log  | sed  's/loaded from.*//' | head -n2
+grep -e ' people pass filters and QC' ${output}.log
+printf "Output file: ${output} \n\n"
 
 	
 ##### initial SNP filters #####
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
 output=$( printf ${output_stem}_geno05_maf01 )
-plink --bfile ${plinkset_out} --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
+plink --bfile ${output} --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 grep 'loaded from' $output.log  | sed  's/loaded from.*//' | head -n2
 grep -e 'missing genotype data' -e 'minor allele threshold' -e ' people pass filters and QC' $output.log
@@ -408,13 +398,6 @@ else
         grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
 
 fi
-
-
-##### Step 7: Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals) #####
-printf "\nStep 7: #### Remove individuals based on autosomal PCs and heterozygocity outliers (and for restrict to NHW individuals)  #### \n"
-# skip for now as need to figure out how to pass this file that requires manual intervention
-# (Done: required as input)VJ need to get the final plinkset from autosomal processing
-
 
 #### Step 8: Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX ####
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];

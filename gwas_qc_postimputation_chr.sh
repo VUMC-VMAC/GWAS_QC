@@ -16,7 +16,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -z -x -d
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -l [lab] -z -x -d
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -32,6 +32,8 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 
 -p = final autosomal plinkset stem with IID and FID matching the input plinkset and PC outliers removed, used in Xchromosome GWAS QC to match autosomal individuals in final plinkset.
 
+lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
+
 -z indicates that the imputation results will need to be unzipped. All *.zip files in imputation_results_folder will be unzipped with password provided in pass.txt
 -x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
 -d will skip the clean-up at the end of the script which removes intermediate *.bed files.
@@ -43,7 +45,7 @@ preimputation_geno = the full path and stem to the cleaned final pre-imputation 
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:i:r:f:s:g:p:zxdh' flag; do
+while getopts 'o:i:r:f:s:g:p:l:zxdh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
@@ -53,6 +55,7 @@ while getopts 'o:i:r:f:s:g:p:zxdh' flag; do
     z) do_unzip='true' ;;
     g) preimputation_geno="${OPTARG}" ;;
     p) ds_plinkset="${OPTARG}" ;;
+    l) lab="${OPTARG}" ;;
     x) skip_first_filters='true' ;;
     d) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
@@ -276,6 +279,15 @@ printf "After merging in genotypes, there are $( grep "pass filters and QC" ${ou
 printf "Output file: ${output} \n"
 
 
+################################## subset to the current dataset ######################################3
+
+output_last=${output}
+output=${output}_${lab}
+plink --bfile ${output_last} --keep ${ds_plinkset} --make-bed --out ${output} $plink_memory_limit > /dev/null
+samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+printf "Subsetted to samples present in ${lab}, leaving ${samples} samples.\n"
+
+################################## SNP filters ###########################
 
 # SNP filters
 printf "Step 6 : SNP filters \n" 
