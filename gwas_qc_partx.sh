@@ -152,50 +152,49 @@ fi
 output_folder=${output_stem%/*}
 input_plinkset=${input_fileset##*/}
 
-##### format plinkset: update varIDs #####
-printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
-#varID -> CHR:POS:REF:ALT
-plinkset_in=${input_fileset}
-plinkset_out=${output_folder}/${input_plinkset}_varID
-awk '{print $1,$1"_"$4"_"$5"_"$6,$3,$4,$5,$6}' ${input_fileset}.bim > ${plinkset_out}_temp.bim
-plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
+###### format plinkset: update varIDs #####
+#printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
+##varID -> CHR:POS:REF:ALT
+#plinkset_in=${input_fileset}
+#plinkset_out=${output_folder}/${input_plinkset}_varID
+#awk '{print $1,$1"_"$4"_"$5"_"$6,$3,$4,$5,$6}' ${input_fileset}.bim > ${plinkset_out}_temp.bim
+#plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
 
-printf " Input: ${plinkset_in}\n"
-grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-printf " Output: ${plinkset_out} \n\n"
+#printf " Input: ${plinkset_in}\n"
+#grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+#printf " Output: ${plinkset_out} \n\n"
 
-# long indel: smart pca limit 39 characters so keeping limit to 25
-plinkset_in=${plinkset_out}
-plinkset_out=${plinkset_in}_indel
-awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
+## long indel: smart pca limit 39 characters so keeping limit to 25
+#plinkset_in=${plinkset_out}
+#plinkset_out=${plinkset_in}_indel
+#awk '{if( length($5)>25 || length($6)>25) { print $1,$1"_"$4"_I_D",$3,$4,$5,$6} else {print $0} }' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+#plink --bed ${plinkset_in}.bed --fam ${plinkset_in}.fam --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out}  > /dev/null
 
-grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-grep -e ' people pass filters and QC' ${plinkset_out}.log
-printf "Output file: ${plinkset_out} \n\n"
+#grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+#grep -e ' people pass filters and QC' ${plinkset_out}.log
+#printf "Output file: ${plinkset_out} \n\n"
 
 
-#dups: only remove the duplicates keep the first variant(TODO keep with least missing)
-plinkset_in=${plinkset_out}
-plinkset_out=${plinkset_in}_dups
-awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
-# dups marked
-plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out} >/dev/null
+##dups: only remove the duplicates keep the first variant(TODO keep with least missing)
+#plinkset_in=${plinkset_out}
+#plinkset_out=${plinkset_in}_dups
+#awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${plinkset_in}.bim > ${plinkset_out}_temp.bim
+## dups marked
+#plink --fam  ${plinkset_in}.fam --bed  ${plinkset_in}.bed --bim ${plinkset_out}_temp.bim $plink_memory_limit --make-bed --out ${plinkset_out} >/dev/null
 
-if [ "$skip_flag" = false ];
-then		
-	plinkset_in=${plinkset_out}
-        plinkset_out=${plinkset_in}Excl
-	# plink --bfile  ${plinkset_in} --exclude <( awk '{print $2}' ${plinkset_in}.bim | grep 'DUPS' | awk '{print $2}' ) \
-#--make-bed --out ${plinkset_out} >/dev/null
-	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in} $plink_memory_limit  > /dev/null
-	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} $plink_memory_limit >/dev/null
-	printf " Dupli/Multiplicate variants excluded: $(wc -l <${plinkset_in}.dupvar)\n"
-fi
-        printf " Input: ${plinkset_in}\n"
-        grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
-        grep -e ' people pass filters and QC' ${plinkset_out}.log
-        printf "Output file: ${plinkset_out} \n\n"
+#if [ "$skip_flag" = false ];
+#then		
+#	plinkset_in=${plinkset_out}
+#        plinkset_out=${plinkset_in}Excl
+#	# plink --bfile  ${plinkset_in} --exclude <( awk '{print $2}' ${plinkset_in}.bim | grep 'DUPS' | awk '{print $2}' ) --make-bed --out ${plinkset_out} >/dev/null
+#	plink --bfile ${plinkset_in} --list-duplicate-vars suppress-first -out ${plinkset_in} $plink_memory_limit  > /dev/null
+#	plink --bfile ${plinkset_in} --exclude ${plinkset_in}.dupvar --make-bed --out ${plinkset_out} $plink_memory_limit >/dev/null
+#	printf " Dupli/Multiplicate variants excluded: $(wc -l <${plinkset_in}.dupvar)\n"
+#fi
+#        printf " Input: ${plinkset_in}\n"
+#        grep 'loaded from' ${plinkset_out}.log  | sed  's/loaded from.*//' | head -n2
+#        grep -e ' people pass filters and QC' ${plinkset_out}.log
+#        printf "Output file: ${plinkset_out} \n\n"
 
 	
 ##### initial SNP filters #####
@@ -299,7 +298,6 @@ fi
 printf "\n ##### X-chromosome Processing ##### \n"
 ##### save plinkset for x-chromosome processing #####
 plinkset_x_in=${plinkset_x_out}
-#plinkset_x_start=${plinkset_x_in}
 plinkset_x_first=${plinkset_x_in}
 
 # merge and split-X to exclude PARs regions
@@ -310,26 +308,25 @@ plinkset_x_first=${plinkset_x_in}
 # merge and then split chrX with position range based on build
 printf "\nStep 1: Assign pseudoautosomal regions (PARS) based on build\n"
 printf "\n merge and split the genotype on build ${build} coordinates preparing to exclude PARs\n"
-    plinkset_x_in=${plinkset_x_out}
-    plinkset_x_out=${plinkset_x_in}_mergeX
-    printf " Input: ${plinkset_x_in}\n"
-    printf " Output: ${plinkset_x_out}\n"
-    plink --bfile ${plinkset_x_in} --merge-x no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-    grep -e 'merge-x: ' ${plinkset_x_out}.log ||
-    printf " --merge-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
+plinkset_x_in=${plinkset_x_out}
+plinkset_x_out=${plinkset_x_in}_mergeX
+printf " Input: ${plinkset_x_in}\n"
+printf " Output: ${plinkset_x_out}\n"
+plink --bfile ${plinkset_x_in} --merge-x no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+grep -e 'merge-x: ' ${plinkset_x_out}.log ||
+printf " --merge-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
-
-    plinkset_x_in=${plinkset_x_out}
-    plinkset_x_out=${plinkset_x_in}_splitX
-    printf " Input: ${plinkset_x_in} \n"
-    printf " Output: ${plinkset_x_out} \n"
-    plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-    grep -e 'split-x: ' ${plinkset_x_out}.log ||
-    printf " --split-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
+plinkset_x_in=${plinkset_x_out}
+plinkset_x_out=${plinkset_x_in}_splitX
+printf " Input: ${plinkset_x_in} \n"
+printf " Output: ${plinkset_x_out} \n"
+plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+grep -e 'split-x: ' ${plinkset_x_out}.log ||
+printf " --split-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
 #### STEP 2 ####
 printf '%s\n\n' "Step 2: set het. haploid genotypes missing"
-#set hh missing todeal with het haplotype warning (since after sex check)
+# set hh missing to deal with het haplotype warning (since after sex check)
 # check no hh warnings on females and set hh to missing
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
 then
