@@ -147,14 +147,14 @@ HRC-1000G-check-bim-NoReadKey.pl\n"
 fi
 
 
-
 #get output folder
 output_folder=${output_stem%/*}
 input_plinkset=${input_fileset##*/}
 
+###################################### Initial variant filters ##################################################3
+
 ###### format plinkset: update varIDs #####
 printf '%s\n\n' "Step 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates"
-#varID -> CHR:POS:REF:ALT
 output=${output_folder}/${input_plinkset}_stdnames
 ## generate an ID with just variant info rather than rsID and shorten IDs that are too long
 awk '{if( length($5)>25 || length($6)>25) { print $2,$1"_"$4"_I_D"} else {print $2,$1"_"$4"_"$5"_"$6} }' ${input_fileset}.bim > ${output}.txt
@@ -195,6 +195,8 @@ plink --bfile ${output} --geno 0.05 --maf 0.01 --make-bed --out $output $plink_m
 grep 'loaded from' $output.log  | sed  's/loaded from.*//' | head -n2
 grep -e 'missing genotype data' -e 'minor allele threshold' -e ' people pass filters and QC' $output.log
 printf "Output file: $output \n\n"
+
+###################################### Initial sample filters ##################################################3
 
 ##### person missingness #####
 printf '%s\n' "Step 2: remove subjects w/ >1% missingness"
@@ -284,20 +286,20 @@ then
   $(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc )\n"
 fi
 
-################## X-chromosome Processing ###############################
-printf "\n ##### X-chromosome Processing ##### \n"
+###################################### Begin X chr specific processing ##################################################3
+
+printf "\n Beginning X-chromosome processing...\n"
+
 ##### save plinkset for x-chromosome processing #####
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_first=${plinkset_x_in}
 
-# merge and split-X to exclude PARs regions
-# VJ: merge and split combination takes care of any inconsistent assignment (move it before sex check)
-# also if chr25(PAR) is already present than the --split-x option results in error
 
-#### STEP 1 ####
+#### STEP 1 Subset to X chromosome ####
+
 # merge and then split chrX with position range based on build
-printf "\nStep 1: Assign pseudoautosomal regions (PARS) based on build\n"
-printf "\n merge and split the genotype on build ${build} coordinates preparing to exclude PARs\n"
+printf "\nStep 1: Subset to X chromosome, removign autosomal and PAR variants.\n"
+printf "\nFirst, assign pseudoautosomal regions (PARS) based on build ${build} coordinates.\n"
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_in}_mergeX
 printf " Input: ${plinkset_x_in}\n"
@@ -306,6 +308,7 @@ plink --bfile ${plinkset_x_in} --merge-x no-fail --make-bed --out ${plinkset_x_o
 grep -e 'merge-x: ' ${plinkset_x_out}.log ||
 printf " --merge-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
+printf "Now, split PAR region from X chr.\n"
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_in}_splitX
 printf " Input: ${plinkset_x_in} \n"
@@ -314,8 +317,7 @@ plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${pli
 grep -e 'split-x: ' ${plinkset_x_out}.log ||
 printf " --split-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
-#### STEP 2 ####
-printf '%s\n\n' "Step 2: set het. haploid genotypes missing"
+printf '%s\n\n' "Now, setting het. haploid genotypes missing."
 # set hh missing to deal with het haplotype warning (since after sex check)
 # check no hh warnings on females and set hh to missing
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
@@ -323,7 +325,6 @@ then
         printf "\n Only males or other sex present \n"
 else
     printf "\n Confirm no hh warning for females only selection below: 'Warning: ... het. haploid genotypes present' \n"
-    # will have issues with males only cohort. skip this for male only
     plink --bfile ${plinkset_x_out} --filter-females --freq $plink_memory_limit --out ${plinkset_x_out} > /dev/null
 fi
 
@@ -335,77 +336,62 @@ plink --bfile ${plinkset_x_in} --set-hh-missing --make-bed --out ${plinkset_x_ou
 printf "Input file: ${plinkset_x_in} \n"
 printf "Output file: ${plinkset_x_out} \n\n"
 
-#### STEP 3 ####
-printf "\nStep 3: Subset to X-chromosome \n"
+## now that all other variants have been split or removed, subset to chr 23 variants only
+printf "\nFinally, subsetting to X-chromosome variants only.\n"
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_first}_X
-
-
-#subset to X-chr SNPS (X:23, Y: 24, XY:25, mitochondria:26)
-# TODO: * need to confirm if chr is not coded as X instead of 23
-#       * may need to split-x before subsetting (confirm)
-plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-    printf " Input: ${plinkset_x_in} \n"
-    printf " Output: ${plinkset_x_out}\n"
+printf " Input: ${plinkset_x_in} \n"
+printf " Output: ${plinkset_x_out}\n"
+#subset to X-chr SNPS
+plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null    
 grep -e ' people pass filters and QC.' ${plinkset_x_out}.log
-n_x2=$(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)
+## log the number of variants removed 
+n_x2=$( wc -l ${plinkset_x_out}.bim )
 printf "Removed PARS SNPs: $(( ${n_x} - ${n_x2}))\n"
-printf "number of X-chromosome SNPs remaining: $(awk '$1==23{print}' ${plinkset_x_out}.bim | wc -l)\n"
-# exclude pseudoautosomal regions (PARs)
-#n_par=$(awk '$1==25{print}' ${plinkset_x_out}.bim | wc -l)
-#printf "check: ${n_par} SNPs in PARs left.(should be = 0)\n"
-
-#### STEP 4 ####
-############## This step occurs above and erroring was already commented out here. 
-## confirm sex is updated
-#n_sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | wc -l)
-#sex=$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc | awk '{print $2}') 
-#if [ $n_sex -ne 2 ];
-#then
-#printf "\n ERROR: sex not proper/updated in fam:
-#${plinkset_x_out}.fam , 1=Male, 2=Female;
-#$(awk '{print $5}' ${plinkset_x_out}.fam | sort | uniq -dc )\n"
-#        #exit 1;
-#fi
-
-# update pheno with sex
-printf "Updating phenotype in plink files to correspond to sex...\n"
-plinkset_x_in=${plinkset_x_out}
-plinkset_x_out=${plinkset_x_out}_sexpheno
-awk -F ' ' '{print $1,$2,$5}' ${plinkset_x_in}.fam > ${plinkset_x_out}.txt
-plink --bfile ${plinkset_x_in} --make-pheno ${plinkset_x_out}.txt 2 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+printf "number of X-chromosome SNPs remaining: ${n_x2}\n"
 
 
-##### diffential missingness calculations #####
+#### STEP 2 Performing differential missingness filter ####
+
 if [  $n_sex -eq 1 ];
 then
-        printf "\nSkipping Step 5: diffential missingness calculations #####  \n"
-        printf "\n Only one sex present \n"
+    printf "\nSkipping Step 2: Diffential missingness calculations because only one sex is present.\n"
 else
-        printf "\nStep 5: ##### diffential missingness calculations #####  \n"
-        # generate male-female diff miss stats
-        plink --bfile ${plinkset_x_out} --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
-        # drop SNPs with P < 0.0000001
-	## generate list of variants
-        awk '$5 <= 0.0000001{print $2}' ${plinkset_x_out}_diffmiss.missing > ${plinkset_x_out}_diffmiss_to_drop.txt
-        printf "\n male-female diff miss SNPs with P < 0.0000001(1e-7) dropped: $(wc -l < ${plinkset_x_out}_diffmiss_to_drop.txt)\n"
-	## remove using plink
-        plinkset_x_in=${plinkset_x_out}
-        plinkset_x_out=${plinkset_x_in}_e7diffmiss
-        plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-        printf " Input: ${plinkset_x_in} \n"
-        printf " Output: ${plinkset_x_out} \n"
-        grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
+    printf "\nStep 2: Performing differential missingness calculations.\n"
+    
+    # update pheno with sex
+    printf "First, updating phenotype in plink files to correspond to sex for ease of missingness calculations...\n"
+    plinkset_x_in=${plinkset_x_out}
+    plinkset_x_out=${plinkset_x_out}_sexpheno
+    awk -F ' ' '{print $1,$2,$5}' ${plinkset_x_in}.fam > ${plinkset_x_out}.txt
+    plink --bfile ${plinkset_x_in} --make-pheno ${plinkset_x_out}.txt 2 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+
+    # generate male-female diff miss stats
+    printf "Now, calculating missingness statistics by sex.\n"
+    plink --bfile ${plinkset_x_out} --test-missing --out ${plinkset_x_out}_diffmiss $plink_memory_limit > /dev/null
+    # drop SNPs with P < 0.0000001
+    ## generate list of variants
+    awk '$5 <= 0.0000001{print $2}' ${plinkset_x_out}_diffmiss.missing > ${plinkset_x_out}_diffmiss_to_drop.txt
+    printf "\n male-female diff miss SNPs with P < 0.0000001(1e-7) dropped: $(wc -l < ${plinkset_x_out}_diffmiss_to_drop.txt)\n"
+
+    ## remove using plink
+    printf "Finally, removing using plink.\n"
+    plinkset_x_in=${plinkset_x_out}
+    plinkset_x_out=${plinkset_x_in}_e7diffmis
+    printf " Input: ${plinkset_x_in} \n"
+    printf " Output: ${plinkset_x_out} \n"
+    plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+    grep -e 'people pass filters and QC.' ${plinkset_x_out}.log
 
 fi
 
-#### Step 8: Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX ####
+
+##### Step 3: Hardy Weinberg equilibrium 1e6 (based on females) #####
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
 then
-        printf "\nSkipping step 8: #### Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX #### \n"
-        printf "\n Only males or other sex present \n"
+        printf "\nSkipping step 3: Hardy Weinberg equilibrium 1e6 (based on females) because only makes are present.\n"
 else
-        printf "\nStep 8: #### Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX #### \n"
+        printf "\nStep 3: Hardy Weinberg equilibrium 1e6 (based on females)\n"
         plinkset_x_in=${plinkset_x_out}
         plinkset_x_out_fem=${plinkset_x_in}_1e6femHWE
 	plinkset_x_out=${plinkset_x_in}_femHWE6
@@ -420,9 +406,9 @@ else
 fi
 
 
-############################# insert preparation for imputation
+##################################### Begin preparation for imputation #####################################3
 
-printf "\nStep 2: Removing palindromic variants \n"
+printf "\nStep 4: Removing palindromic variants \n"
 
 #get palindromic variants
 awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  && $6 == "G") || ($5 == "G" && $6 == "C")) print }'  ${plinkset_x_out}.bim > ${output_folder}/palindromic_snps.txt
@@ -437,15 +423,15 @@ printf "Output file: $output \n"
 #check the build, decide whether to do the liftOver and, if so, which chain file to use
 if [ "$build" = "b37" ];
 then
-    printf "\nStep 3: Lifting over the genotype file from build 37 to build 38 to match the TOPMed reference panel\n"
+    printf "\nStep 5: Lifting over the genotype file from build 37 to build 38 to match the TOPMed reference panel\n"
     chain_file="hg19ToHg38.over.chain.gz"
 elif [ "$build" = "b36" ];
 then 
-    printf "\nStep 2: Lifting over the genotype file from build 36 to build 38 to match the TOPMed reference panel\n"
+    printf "\nStep 5: Lifting over the genotype file from build 36 to build 38 to match the TOPMed reference panel\n"
     chain_file="hg18ToHg38.over.chain.gz"
 elif [ "$build" = "b38" ];
 then
-    printf "\nStep 3: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
+    printf "\nSkipping step 5: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
 fi
 
 #if the chain file variable is set, then run the liftOver
@@ -473,7 +459,7 @@ fi
 
 #### remove same-position variants ####
 
-printf "\nStep 4: Removing multi-allelic and duplicated variants.\n"
+printf "\nStep 6: Removing multi-allelic and duplicated variants.\n"
 awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_folder}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 
 if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
@@ -489,7 +475,7 @@ fi
 
 #### Imputation prep ####
 
-printf "\nStep 5: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
+printf "\nStep 7: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #make set with short name and freq file
 plink --bfile ${output} --freq --make-bed --out ${output_stem} > /dev/null
