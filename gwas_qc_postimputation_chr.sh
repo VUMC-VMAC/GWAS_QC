@@ -16,7 +16,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -p [autosomal_stem] -l [lab] -z -x -d
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -p [autosomal_stem] -l [lab] -z -x -d -m [plink_memory_limit]
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -32,6 +32,8 @@ autosomal_stem = the full path and stem to the fam file of the final autosomal p
 
 lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
 
+plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
+
 -z indicates that the imputation results will need to be unzipped. All *.zip files in imputation_results_folder will be unzipped with password provided in pass.txt
 -x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
 -d will skip the clean-up at the end of the script which removes intermediate *.bed files.
@@ -43,7 +45,7 @@ lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:i:f:s:g:p:l:zxdh' flag; do
+while getopts 'o:i:f:s:g:p:l:m:zxdh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
@@ -53,6 +55,7 @@ while getopts 'o:i:f:s:g:p:l:zxdh' flag; do
     g) preimputation_geno_X="${OPTARG}" ;;
     p) autosomal_stem="${OPTARG}" ;;
     l) lab="${OPTARG}" ;;
+    m) plink_memory_limit="${OPTARG}";;
     x) skip_first_filters='true' ;;
     d) skip_cleanup='true' ;;
     h) display_usage ; exit ;;
