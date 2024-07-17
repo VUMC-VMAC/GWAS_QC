@@ -24,8 +24,6 @@ imputation_results_folder = the folder to which the imputation results have been
 
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
-race_file (optional) = a file with FID and IID (corresponding to the fam file) and 1 column indicating both race and ethnicity for PC plots, with NO header. Non-hispanic whites need to be indicated with 'White' or 'EUR.' No other values in the race column must be fixed; however, the race column must not include spaces. This is only needed if you want to color PC plots based on race (which at this stage will only be self-report). Ancestral categories will be calculated post-imputation using SNPWeights. 
-
 snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
 preimputation_geno_X = the full path and stem to the cleaned final pre-imputation files for X chromosome to be merged back into the final files
@@ -45,11 +43,10 @@ lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:i:r:f:s:g:p:l:zxdh' flag; do
+while getopts 'o:i:f:s:g:p:l:zxdh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
-    r) race_file="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;\
     z) do_unzip='true' ;;
@@ -65,7 +62,7 @@ while getopts 'o:i:r:f:s:g:p:l:zxdh' flag; do
 done
 
 #check to make sure necessary arguments are present                                                                                                    
-if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$race_file" ] || [ -z "${snp_names_file}" ] ;
+if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "${snp_names_file}" ] ;
 then
     printf "Error: Necessary arguments not present! \n\n"
     display_usage
@@ -78,7 +75,6 @@ printf "GWAS QC Post-imputation Script, X Chromosome
 Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
 Sex information file : ${sex_file}
-Race information file : ${race_file}
 Stem for files for SNP name conversion : ${snp_names_file}_chr${CHR}
 "
 if [ "$do_unzip" = 'false' ];
@@ -104,13 +100,6 @@ fi
 if [ ! -f "$sex_file" ]; 
 then
     printf "File with sex information ($sex_file) does not exist! Please try again, specifying the correct input file.\n"
-    exit 1
-fi
-
-#validate the race file
-if [ ! -f "$race_file" ]; 
-then
-    printf "File with race information ($race_file) does not exist! Please try again, specifying the correct input file.\n"
     exit 1
 fi
 
