@@ -221,9 +221,19 @@ plink --bfile ${output_last} --update-sex ${sex_file} $plink_memory_limit --make
 printf "sex updated: ${sex_file} \n"
 grep -e "people updated" ${output}.log
 
+
+################################## subset to the current dataset ######################################3
+
+printf "\nStep 5: Subset to samples present in ${lab}\n"
+output_last=${output}
+output=${output}_${lab}
+plink --bfile ${output_last} --keep ${ds_plinkset} --make-bed --out ${output} $plink_memory_limit > /dev/null
+samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+printf "Subsetted to samples present in ${lab}, leaving ${samples} samples.\n"
+
 ###### merge back in genotypes #####
 
-printf "\nStep 5: Merging back in the original genotypes.\n"
+printf "\nStep 6: Merging back in the original genotypes.\n"
 
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 # this step was performed in part2, however, keeping it for robustness
@@ -279,24 +289,15 @@ printf "After merging in genotypes, there are $( grep "pass filters and QC" ${ou
 printf "Output file: ${output} \n"
 
 
-################################## subset to the current dataset ######################################3
-
-output_last=${output}
-output=${output}_${lab}
-plink --bfile ${output_last} --keep ${ds_plinkset} --make-bed --out ${output} $plink_memory_limit > /dev/null
-samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
-printf "Subsetted to samples present in ${lab}, leaving ${samples} samples.\n"
-
 ################################## SNP filters ###########################
 
 # SNP filters
-printf "Step 6 : SNP filters \n" 
+printf "Step 7: SNP filters\n" 
 printf "\n Hardy Weinberg equilibrium 1e6 (based on females) as only females are diploids XX  \n"
 
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
 then
-        printf "\nSkipping step 6: #### Hardy Weinberg equilibrium 1e6 (based on females) only females are diploids XX #### \n"
-        printf "\n Only males or other sex present \n"
+        printf "\nSkipping step 7: Hardy Weinberg equilibrium 1e6 (based on females): only males or other sex present \n"
 else
 
 	output_last=${output}
@@ -321,86 +322,8 @@ output=${output}_maf01
 plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
 grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
 
-printf "\n\n ##### heterozygosity check & autosomal PC outlier removal ##### \n\n"
-printf " Skipped (PC outlier removal) as these steps are already completed in Part1 \n" 
-#if [ 'false' ]
-#then
-###### heterozygosity check #####
-
-if [  $n_sex -eq 1 ] && [ ${sex} -eq 2 ];
-then
-        printf "\nSkipping Step6: #### Heterozygocity check (males only) #### \n"
-        printf "\n Only females or other sex present \n"
-else
-
-	printf "\n: #### Heterozygocity check (males only) #### \n"
-	printf " PS: plink requires autosomal chromosome for --het,  using dog as species to treat X-chromosome as autosomal for this step.
-         and circumvent 'Error: --het requires at least one polymorphic autosomal marker.' \n"
-	## filter males and prune set (removed --filter-males flag)
-	plinkset_x_out=${output};
-	#plink --bfile ${plinkset_x_out} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
-	plink --bfile ${plinkset_x_out} --filter-males --indep-pairwise 200 100 0.2 --allow-no-sex --out ${plinkset_x_out}_prune $plink_memory_limit > /dev/null
-	plink --bfile ${plinkset_x_out} --output-missing-phenotype 1 --extract ${plinkset_x_out}_prune.prune.in $plink_memory_limit --make-bed --out ${plinkset_x_out}_pruned > /dev/null
-	rm ${plinkset_x_out}_prune.*
-	printf "$( wc -l < ${plinkset_x_out}_pruned.bim ) variants(not males only) out of $( wc -l < ${plinkset_x_out}.bim ) left after pruning.\n"
-
-	# using "dog" as species to treat X as autosomal and overcome "Error: --het requires at least one polymorphic autosomal marker."
-	plink --bfile ${plinkset_x_out}_pruned --het --dog --out ${plinkset_x_out}_pruned_hetcheck > /dev/null
-	##plot and check for outliers
-	Rscript plot_het_check_outliers.R ${plinkset_x_out}_pruned_hetcheck
-	printf "Heterozygocity outliers(X-chr, males only) review figure: ${plinkset_x_out}_pruned_hetcheck.png \n"
-
-	#if there are outliers >6 sd from the F stat mean, remove them
-	if [ -f "${plinkset_x_out}_pruned_hetcheck_outliers.txt" ];
-	then
-	    plinkset_x_in=${plinkset_x_out}
-	    plinkset_x_out=${plinkset_x_out}_nohetout
-	    plink --bfile ${plinkset_x_in} --remove ${plinkset_x_in}_pruned_hetcheck_outliers.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-	    printf " Input: ${plinkset_x_in} \n"
-	    grep -e ' people pass filters and QC' ${plinkset_x_out}.log
-	    printf "Output: ${plinkset_x_out} \n"
-	fi
-
-fi # Skip heterogygocity outlier check
-grep -e ' people pass filters and QC' ${output}.log
-printf "Output file: $output \n"
-
-##### PC calculation ####
-#printf "\nStep 7: Calculating post-imputation PCs\n\n"
-
-##### Subset to Overlapping SNPs between sexes #####
-# skip overlapping SNP step for single sex dataset
-n_sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | wc -l)
-sex=$(awk '{print $5}' ${output}.fam | sort | uniq -dc | awk '{print $2}')
-if [ $n_sex -ne 2 ];
-then
-        printf "Warning: single sex dataset skipping \nStep 8: Subset to Overlapping SNPs between sexes \n"
-        printf "N sexes: $n_sex, sex code: $sex \n"
-else
-
-    printf "\nStep 8: Subset to overlapping SNPs between sexes \n\n"
-    # filter to each sex and use a missingness flag to filter out variants not present for those samples, writing out just a list of variants.           
-    plink --bfile ${output} --filter-females --geno 0.01 --write-snplist --out ${output}_females --memory 15000 > /dev/null
-    plink --bfile ${output} --filter-males --geno 0.01 --write-snplist --out ${output}_males --memory 15000 > /dev/null
-    # sort those files and get overlapping variant IDs        
-    cat ${output}_males.snplist | sort > ${output}_males_sorted.snplist
-    cat ${output}_females.snplist | sort > ${output}_females_sorted.snplist
-    comm -12 ${output}_males.snplist ${output}_females.snplist  > ${output}_overlapping_SNPs.txt
-
-    output_last=$output
-    output=${output}_overlapping
-
-	plink --bfile ${output_last} --extract ${output_last}_overlapping_SNPs.txt --real-ref-alleles --make-bed --out ${output} $plink_memory_limit > /dev/null
-	printf "Output: ${output} \n"
-	printf " female SNPs: $(wc -l < ${output_last}_female_snps.txt) \n"
-	printf " male SNPs: $(wc -l < ${output_last}_male_snps.txt) \n"
-	printf " Overlapping SNPs in both sexes: $(wc -l < ${output_last}_overlapping_SNPs.txt) \n"
-	grep -e ' people pass filters and QC' ${output}.log
-fi
-
 # check no hh warnings on females and set hh to missing
 printf "\n Confirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
-
 # will have issues with males only cohort. skip this for male only
 plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
 
@@ -414,7 +337,7 @@ plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --o
 ##### Step 9: Remove individuals based on autosomal PC outliers) #####
 printf "\nStep 9: #### Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  #### \n"
 
-awk '{print $1,$2}' ${ds_plinkset}.fam > ${output}_ind_to_keep.txt
+awk '{print $1,$2}' ${ds_plinkset_noPCout}.fam > ${output}_ind_to_keep.txt
 printf "\n individuals in final autosomal dataset(individual list: ${output}_ind_to_keep.txt): $(wc -l < ${output}_ind_to_keep.txt) \n"
 
 plinkset_x_in=${output}
@@ -427,5 +350,4 @@ plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-be
 output_last=$plinkset_x_out
 output=${output_stem}
 plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
-printf "\n Final X-chromosome plinkset: ${output_stem} \n Part Postimputation ... Done! \n"
-
+printf "\n Final X-chromosome plinkset: ${output_stem} \n X chromosome postimputation QC complete! \n"
