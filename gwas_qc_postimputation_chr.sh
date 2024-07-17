@@ -75,7 +75,7 @@ printf "GWAS QC Post-imputation Script, X Chromosome
 Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
 Sex information file : ${sex_file}
-Stem for files for SNP name conversion : ${snp_names_file}_chr${CHR}
+Stem for files for SNP name conversion : ${snp_names_file}_chrX
 "
 if [ "$do_unzip" = 'false' ];
 then 
@@ -134,13 +134,13 @@ geno_stem=${preimputation_geno_X##*/}
 if [ "$do_unzip" = 'true' ];
 then
     #unzip imputation results using password
-    printf "Step 1 : Unzipping imputation results for chr ${CHR}\n\n"
-    unzip -P $( cat ${imputation_results_folder}/pass.txt ) ${imputation_results_folder}/chr_${CHR}.zip -d $imputation_results_folder
+    printf "Step 1 : Unzipping imputation results for chr X\n\n"
+    unzip -P $( cat ${imputation_results_folder}/pass.txt ) ${imputation_results_folder}/chr_X.zip -d $imputation_results_folder
 else
     #make sure the imputation results are actually unzipped
-    if test ! -f ${imputation_results_folder}/chr${CHR}.dose.vcf.gz ;
+    if test ! -f ${imputation_results_folder}/chrX.dose.vcf.gz ;
     then 
-	printf "The -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chr${CHR}.dose.vcf.gz)! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
+	printf "The -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chrX.dose.vcf.gz)! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
 	exit 1
     else
 	printf "Step 1 (unzipping the imputation results) is already complete. Proceeding the step 2...\n\n"
@@ -153,12 +153,12 @@ then
     printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
 
     #restrict to variants with R2>=0.80    
-    plink2 --vcf ${imputation_results_folder}/chr${CHR}.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp > /dev/null;
+    plink2 --vcf ${imputation_results_folder}/chrX.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp > /dev/null;
     # exclude duplicate variants
-    awk '{ print $2,$4 }' ${output_stem}_chr${CHR}_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chr${CHR}.dups
-    plink2 --bfile ${output_stem}_chr${CHR}_temp --exclude ${output_stem}_chr${CHR}.dups $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups > /dev/null;
+    awk '{ print $2,$4 }' ${output_stem}_chrX_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chrX.dups
+    plink2 --bfile ${output_stem}_chrX_temp --exclude ${output_stem}_chrX.dups $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp_nodups > /dev/null;
     # update name with rs numbers
-    plink2 --bfile ${output_stem}_chr${CHR}_temp_nodups --update-name ${snp_names_file}_chr${CHR}.txt $plink_memory_limit --make-bed --out ${output_stem}_chr${CHR}_temp_nodups_names > /dev/null; 
+    plink2 --bfile ${output_stem}_chrX_temp_nodups --update-name ${snp_names_file}_chrX.txt $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp_nodups_names > /dev/null; 
 	
     #print out numbers of variants
     total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
@@ -208,7 +208,7 @@ awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno_X}.bim > ${output_fol
 plink --bfile ${preimputation_geno_X} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
 # update to RSIDs
 printf "Now updating pre-imputation variant IDs to RSID...\n"
-plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
+plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chrX.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
  
 # the genotyped variant ids to exclude
 awk '{ print $2 }' ${output_folder}/${geno_stem}_rsid.bim > ${output_folder}/${geno_stem}_genotyped_variants.txt
