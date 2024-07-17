@@ -16,7 +16,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno] -p [final autosomal genotype plinkset] -l [lab] -z -x -d
+SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -p [autosomal_stem] -l [lab] -z -x -d
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -28,9 +28,9 @@ race_file (optional) = a file with FID and IID (corresponding to the fam file) a
 
 snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored.
 
-preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
+preimputation_geno_X = the full path and stem to the cleaned final pre-imputation files for X chromosome to be merged back into the final files
 
--p = final autosomal plinkset stem with IID and FID matching the input plinkset and PC outliers removed, used in Xchromosome GWAS QC to match autosomal individuals in final plinkset.
+autosomal_stem = the full path and stem to the fam file of the final autosomal plinkset (with PC outliers removed)
 
 lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
 
@@ -53,8 +53,8 @@ while getopts 'o:i:r:f:s:g:p:l:zxdh' flag; do
     f) sex_file="${OPTARG}" ;;
     s) snp_names_file="${OPTARG}" ;;\
     z) do_unzip='true' ;;
-    g) preimputation_geno="${OPTARG}" ;;
-    p) ds_plinkset="${OPTARG}" ;;
+    g) preimputation_geno_X="${OPTARG}" ;;
+    p) autosomal_stem="${OPTARG}" ;;
     l) lab="${OPTARG}" ;;
     x) skip_first_filters='true' ;;
     d) skip_cleanup='true' ;;
@@ -63,29 +63,6 @@ while getopts 'o:i:r:f:s:g:p:l:zxdh' flag; do
        exit 1;;
   esac
 done
-
-printf "\n Brief summary:
-Step1: unzipping the imputation results
-        -z: all *.zip files in imputation_results_folder will be unzipped
-Step2: Filtering imputation results for R2<0.8 and multi-allelic variants
-        filter vcf got R2>0.8
-        remove multi-position variants(assumed multi-allelic)
-        update VarID with RSID from ref file provided
-Step3: Merging all chromosomes(if more than 1) into one plinkset
-Step4: update IDs,SNP names and sex
-        IDs: 0 FID_IID -> FID IID
-        sex: from race and sex file
-        SNP names: from ref file
-Step5:  merge back in genotyped variants
-	the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
-	update genotyped variants to RSIDs
-	merge the genotyped and imputed data
-Step6: SNP filters
-        HWE(based on females): 1e-6
-        MAF: 0.01 (1 percent)
-Step7: (skipped performed in part1) Heterozygocity + Autosmal PC outliers 
-Step8: keep SNPs overlapping in males and females (skip for single sex cohorts)
-Step9: keep individuals in final autosomal plinkset \n\n"
 
 #check to make sure necessary arguments are present                                                                                                    
 if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$race_file" ] || [ -z "${snp_names_file}" ] ;
@@ -110,16 +87,16 @@ then
 fi
 
 #validate the genotyped files
-if [ ! -f "${preimputation_geno}.fam" ];
+if [ ! -f "${preimputation_geno_X}.fam" ];
 then
-    printf "Cannot see the preimputation genotype files ($preimputation_geno)! Please check the argument supplied to -g and try again! \n"
+    printf "Cannot see the preimputation genotype files ($preimputation_geno_X)! Please check the argument supplied to -g and try again! \n"
     exit 1
 fi
 
 #validate the final plinkset files(only .fam needed)
-if [ ! -f "${ds_plinkset}.fam" ];
+if [ ! -f "${autosomal_stem}.fam" ];
 then
-    printf "Cannot see the preimputation genotype files (${ds_plinkset}.fam)! Please check the argument supplied to -p and try again! \n"
+    printf "Cannot see the preimputation genotype files (${autosomal_stem}.fam)! Please check the argument supplied to -p and try again! \n"
     exit 1
 fi
 
@@ -161,7 +138,7 @@ fi
 #get the output folder
 output_folder=${output_stem%/*}/
 # get the stem of genotype files in case it is in another folder
-geno_stem=${preimputation_geno##*/}
+geno_stem=${preimputation_geno_X##*/}
 
 ################# Start the post-imputation QC ######################
 
@@ -227,7 +204,7 @@ grep -e "people updated" ${output}.log
 printf "\nStep 5: Subset to samples present in ${lab}\n"
 output_last=${output}
 output=${output}_${lab}
-plink --bfile ${output_last} --keep ${ds_plinkset} --make-bed --out ${output} $plink_memory_limit > /dev/null
+plink --bfile ${output_last} --keep ${autosomal_stem} --make-bed --out ${output} $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 printf "Subsetted to samples present in ${lab}, leaving ${samples} samples.\n"
 
@@ -238,8 +215,8 @@ printf "\nStep 6: Merging back in the original genotypes.\n"
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 # this step was performed in part2, however, keeping it for robustness
 printf "Updating pre-imputation variant IDs to TOPMED imputation server format chrX:POS:REF:ALT...\n"
-awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno}.bim > ${output_folder}/${geno_stem}_TOPMED_varID.txt
-plink --bfile ${preimputation_geno} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
+awk '{ print "chrX:"$4":"$6":"$5,$2}' ${preimputation_geno_X}.bim > ${output_folder}/${geno_stem}_TOPMED_varID.txt
+plink --bfile ${preimputation_geno_X} --update-name ${output_folder}/${geno_stem}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_TOPMED_varID  > /dev/null
 # update to RSIDs
 printf "Now updating pre-imputation variant IDs to RSID...\n"
 plink --bfile ${output_folder}/${geno_stem}_TOPMED_varID --update-name ${snp_names_file}_chr${CHR}.txt --make-bed $plink_memory_limit --out ${output_folder}/${geno_stem}_rsid > /dev/null
@@ -274,7 +251,7 @@ then
     printf " Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
     printf " Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
     printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
-    plink --bfile ${output}2 --bmerge ${preimputation_geno} --make-bed --out ${output}_merged > /dev/null
+    plink --bfile ${output}2 --bmerge ${preimputation_geno_X} --make-bed --out ${output}_merged > /dev/null
 
     #check for more warnings
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
@@ -333,21 +310,24 @@ output=${output}_nohh
 printf "\n set het. haploid genotypes missing in ${output}\n"
 plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
-# STEP 9: Remove PC outliers based on final plinkset
-##### Step 9: Remove individuals based on autosomal PC outliers) #####
-printf "\nStep 9: #### Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  #### \n"
 
-awk '{print $1,$2}' ${ds_plinkset_noPCout}.fam > ${output}_ind_to_keep.txt
-printf "\n individuals in final autosomal dataset(individual list: ${output}_ind_to_keep.txt): $(wc -l < ${output}_ind_to_keep.txt) \n"
+############## skipping this step bc the final autosomal file will have PC outliers removed. If we incorporate X chr QC into the autosomal script
+############## it will be easier to do the filters at the same place in the script
+## STEP 9: Remove PC outliers based on final plinkset
+###### Step 9: Remove individuals based on autosomal PC outliers) #####
+#printf "\nStep 9: #### Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  #### \n"
 
-plinkset_x_in=${output}
-plinkset_x_out=${plinkset_x_in}_noout
-plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-    printf " Input: ${plinkset_x_in} \n"
-    printf " Output: ${plinkset_x_out} \n"
+#awk '{print $1,$2}' ${autosomal_stem}.fam > ${output}_ind_to_keep.txt
+#printf "\n individuals in final autosomal dataset(individual list: ${output}_ind_to_keep.txt): $(wc -l < ${output}_ind_to_keep.txt) \n"
+
+#plinkset_x_in=${output}
+#plinkset_x_out=${plinkset_x_in}_noout
+#plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
+#    printf " Input: ${plinkset_x_in} \n"
+#    printf " Output: ${plinkset_x_out} \n"
 
 #make final file
-output_last=$plinkset_x_out
+output_last=$output
 output=${output_stem}
 plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
 printf "\n Final X-chromosome plinkset: ${output_stem} \n X chromosome postimputation QC complete! \n"
