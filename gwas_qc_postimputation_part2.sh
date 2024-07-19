@@ -100,8 +100,8 @@ printf "\nStep 1: Subset imputed and genotyped data to the samples in the curren
 
 printf "Subsetting imputed data samples in this set and filtering variants for missingness...\n"
 # Subset the imputed file
-output=${output_stem}_${subset_label}_geno01
-plink --bfile $output_stem --keep $sample_ids --geno 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
+output=${output_stem}_${subset_label}_geno05
+plink --bfile $output_stem --keep $sample_ids --geno 0.05 --make-bed --out $output $plink_memory_limit > /dev/null
 geno=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
 ## report the number of samples and variants at this step
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
@@ -110,8 +110,8 @@ printf "$samples samples and $variants variants remain in the imputed data.\n"
 
 printf "Subsetting genotyped data and filtering variants for missingness...\n"
 # Subset the genotyped file
-geno_output=${output_folder}/${geno_stem}_${subset_label}_geno01
-plink --bfile $preimputation_geno --keep $sample_ids --geno 0.01 --make-bed --out $geno_output $plink_memory_limit > /dev/null
+geno_output=${output_folder}/${geno_stem}_${subset_label}_geno05
+plink --bfile $preimputation_geno --keep $sample_ids --geno 0.05 --make-bed --out $geno_output $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $1 }' )
 printf "$samples samples and $variants variants remain in the genotyped data.\n"

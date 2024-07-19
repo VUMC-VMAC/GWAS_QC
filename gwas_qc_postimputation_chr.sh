@@ -200,15 +200,15 @@ printf "\nStep 5: Subset to samples present in ${lab}\n"
 
 ### Imputed set
 output_last=${output}
-output=${output}_${lab}
-plink --bfile ${output_last} --keep ${autosomal_stem}.fam --geno 0.01 --make-bed --out ${output} $plink_memory_limit > /dev/null
+output=${output}_${lab}_geno05
+plink --bfile ${output_last} --keep ${autosomal_stem}.fam --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
 printf "Subsetted to samples present in ${lab} in imputed set, leaving ${samples} samples and ${variants} variants.\n"
 
 ### Genotyped set
-output_geno=${output_folder}/${geno_stem}_${lab}
-plink --bfile ${preimputation_geno_X} --keep ${autosomal_stem}.fam --geno 0.01 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
+output_geno=${output_folder}/${geno_stem}_${lab}_geno05
+plink --bfile ${preimputation_geno_X} --keep ${autosomal_stem}.fam --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $1 }' )
 printf "Subsetted to samples present in ${lab} in genotyped set, leaving ${samples} samples and ${variants} variants.\n"
