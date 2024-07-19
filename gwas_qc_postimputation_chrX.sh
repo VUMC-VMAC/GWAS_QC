@@ -99,19 +99,41 @@ then
     exit 1
 fi
 
-#validate the file for the current subset
-if [ ! -f "${current_subset}" ];
-then
-    printf "Cannot see the file to subset to the current subset (${current_subset})! Please check the argument supplied to -p and try again! \n"
-    exit 1
-fi
+################ testing whether doing comma separated arguments for subsetting is going to work
 
-
-#validate the final plinkset files(only .fam needed)
-if [ ! -f "${autosomal_stem}.fam" ];
+if [ "$( echo $current_subset | grep ',' )" ];
 then
-    printf "Cannot see the final autosomal genotype files (${autosomal_stem}.fam)! Please check the argument supplied to -p and try again! \n"
-    exit 1
+    printf "Multiple subsets supplied. Validating these inputs...\n"
+
+    # make arrays
+    IFS=',' read -r -a current_subset <<< "$current_subset"
+    IFS=',' read -r -a lab <<< "$lab"
+    IFS=',' read -r -a autosomal_stem <<< "$autosomal_stem"
+    
+    #test array lengths to make sure they are the same
+    if [ "${#current_subset[@]}" = "${#lab[@]}" ] && [ "${#lab[@]}" = "${#autosomal_stem[@]}" ]; 
+    then
+	for index in "${!array[@]}"
+	do
+	    #validate the file for the current subset
+	    if [ ! -f "${current_subset[index]}" ];
+	    then
+		printf "Cannot see the file to subset to the subset (${current_subset[index]})! Please check the argument supplied to -c and try again! \n"
+		exit 1
+	    fi
+
+	    #validate the final plinkset files(only .fam needed)
+	    if [ ! -f "${autosomal_stem[index]}.fam" ];
+	    then
+		printf "Cannot see the final autosomal genotype files (${autosomal_stem[index]}.fam)! Please check the argument supplied to -p and try again! \n"
+		exit 1
+	    fi
+	done
+    else
+	printf "Please supply the same number of subset files, labels, and final autosomal plink stems. Below are the supplied inputs. Please check, fix, and reattempt.\n"
+	printf "Current subset files: ${current_subset}\nSubset labels: ${lab}\nFinal autosomal files: ${autosomal_stem}\n"
+	exit 1
+    fi
 fi
 
 #validate the sex file
