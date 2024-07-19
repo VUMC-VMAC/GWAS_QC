@@ -4,14 +4,9 @@
 #fail on error
 set -e
 
-# VJ: singularity image and directories bound for reproducibility
-[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
-[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
-[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
-
 #define usage
 display_usage() {
-    printf "GWAS QC post-imputation script, single chromosome
+    printf "GWAS QC Post-imputation Script, X Chromosome
 
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
@@ -67,6 +62,13 @@ while getopts 'o:i:f:s:g:p:l:m:c:zxdh' flag; do
   esac
 done
 
+printf "GWAS QC Post-imputation, X Chromosome\n\n"
+
+# Print out singularity information for reproducability
+[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
+[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
+[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
+
 #check to make sure necessary arguments are present                                                                                                    
 if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "${snp_names_file}" ] ;
 then
@@ -75,17 +77,16 @@ then
     exit 1
 fi
 
-#print out inputs
-printf "GWAS QC Post-imputation Script, X Chromosome
-
-Output file path and stem for cleaned imputed files : $output_stem
+#print out required inputs
+printf "\nOutput file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
 Sex information file : ${sex_file}
 Stem for files for SNP name conversion : ${snp_names_file}_chrX
 File for subsetting to the current set: ${current_subset}
 Label for the current set: ${lab}
-Autosomal plink files for removing heterozygosity/PC outliers: ${autosomal_stem}
-"
+Autosomal plink files for removing heterozygosity/PC outliers: ${autosomal_stem}\n"
+
+# indicate whether results will be unzipped
 if [ "$do_unzip" = 'false' ];
 then 
     printf "The -z was not specified so imputation results must already be unzipped.\n\n"
