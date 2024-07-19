@@ -16,7 +16,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-SCRIPTNAME.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -p [autosomal_stem] -l [lab] -z -x -d -m [plink_memory_limit]
+gwas_qc_postimputation_chrX.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -c [current_subset] -l [lab] -p [autosomal_stem] -z -x -d -m [plink_memory_limit]
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -28,9 +28,11 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 
 preimputation_geno_X = the full path and stem to the cleaned final pre-imputation files for X chromosome to be merged back into the final files
 
-autosomal_stem = the full path and stem to the fam file of the final autosomal plinkset (with PC outliers removed)
+current_subset = the full path and name of the file with IDs for the current subset, typically output from the assign_ancestral_categories.R script
 
 lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
+
+autosomal_stem = the full path and stem to the fam file of the final autosomal plinkset (with PC outliers removed)
 
 plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
@@ -45,7 +47,7 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
-while getopts 'o:i:f:s:g:p:l:m:zxdh' flag; do
+while getopts 'o:i:f:s:g:p:l:m:c:zxdh' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) imputation_results_folder="${OPTARG}" ;;
@@ -53,6 +55,7 @@ while getopts 'o:i:f:s:g:p:l:m:zxdh' flag; do
     s) snp_names_file="${OPTARG}" ;;\
     z) do_unzip='true' ;;
     g) preimputation_geno_X="${OPTARG}" ;;
+    c) current_subset="${OPTARG}" ;;
     p) autosomal_stem="${OPTARG}" ;;
     l) lab="${OPTARG}" ;;
     m) plink_memory_limit="${OPTARG}";;
@@ -79,6 +82,9 @@ Output file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
 Sex information file : ${sex_file}
 Stem for files for SNP name conversion : ${snp_names_file}_chrX
+File for subsetting to the current set: ${current_subset}
+Label for the current set: ${lab}
+Autosomal plink files for removing heterozygosity/PC outliers: ${autosomal_stem}
 "
 if [ "$do_unzip" = 'false' ];
 then 
@@ -92,10 +98,18 @@ then
     exit 1
 fi
 
+#validate the file for the current subset
+if [ ! -f "${current_subset}" ];
+then
+    printf "Cannot see the file to subset to the current subset (${current_subset})! Please check the argument supplied to -p and try again! \n"
+    exit 1
+fi
+
+
 #validate the final plinkset files(only .fam needed)
 if [ ! -f "${autosomal_stem}.fam" ];
 then
-    printf "Cannot see the preimputation genotype files (${autosomal_stem}.fam)! Please check the argument supplied to -p and try again! \n"
+    printf "Cannot see the final autosomal genotype files (${autosomal_stem}.fam)! Please check the argument supplied to -p and try again! \n"
     exit 1
 fi
 
@@ -201,14 +215,14 @@ printf "\nStep 5: Subset to samples present in ${lab}\n"
 ### Imputed set
 output_last=${output}
 output=${output}_${lab}_geno05
-plink --bfile ${output_last} --keep ${autosomal_stem}.fam --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
+plink --bfile ${output_last} --keep ${current_subset} --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
 printf "Subsetted to samples present in ${lab} in imputed set, leaving ${samples} samples and ${variants} variants.\n"
 
 ### Genotyped set
 output_geno=${output_folder}/${geno_stem}_${lab}_geno05
-plink --bfile ${preimputation_geno_X} --keep ${autosomal_stem}.fam --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
+plink --bfile ${preimputation_geno_X} --keep ${current_subset} --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
 samples=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $1 }' )
 printf "Subsetted to samples present in ${lab} in genotyped set, leaving ${samples} samples and ${variants} variants.\n"
@@ -322,20 +336,15 @@ printf "\n set het. haploid genotypes missing in ${output}\n"
 plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
 
-############## skipping this step bc the final autosomal file will have PC outliers removed. If we incorporate X chr QC into the autosomal script
-############## it will be easier to do the filters at the same place in the script
-## STEP 9: Remove PC outliers based on final plinkset
-###### Step 9: Remove individuals based on autosomal PC outliers) #####
-#printf "\nStep 9: #### Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  #### \n"
+##### Step 8: Remove individuals based on final autosomal files #####
+printf "\nStep 9: Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
 
-#awk '{print $1,$2}' ${autosomal_stem}.fam > ${output}_ind_to_keep.txt
-#printf "\n individuals in final autosomal dataset(individual list: ${output}_ind_to_keep.txt): $(wc -l < ${output}_ind_to_keep.txt) \n"
-
-#plinkset_x_in=${output}
-#plinkset_x_out=${plinkset_x_in}_noout
-#plink --bfile ${plinkset_x_in} --keep ${plinkset_x_in}_ind_to_keep.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
-#    printf " Input: ${plinkset_x_in} \n"
-#    printf " Output: ${plinkset_x_out} \n"
+output_last=${output}
+output=${output}_noout
+plink --bfile ${output_last} --keep ${autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
+samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+printf "$samples samples and $variants variants remaining.\n"
 
 ##make final file
 #output_last=$output
