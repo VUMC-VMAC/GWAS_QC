@@ -1,6 +1,7 @@
 #!/bin/bash
 # VJ: 20200709 modified post imputation script for single chromosome run
 # ERM: 20240705 modified for SNPWeights update
+
 #fail on error
 set -e
 
@@ -11,7 +12,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-gwas_qc_postimputation_chrX.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -c [current_subset] -l [lab] -p [autosomal_stem] -z -x -d -m [plink_memory_limit]
+gwas_qc_postimputation_chrX.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -c [subset] -l [lab] -p [autosomal_stem] -z -x -d -m [plink_memory_limit]
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 
@@ -23,7 +24,7 @@ snp_names_file = the file stem for converting the SNP names from imputation resu
 
 preimputation_geno_X = the full path and stem to the cleaned final pre-imputation files for X chromosome to be merged back into the final files
 
-current_subset = the full path and name of the file with IDs for the current subset, typically output from the assign_ancestral_categories.R script
+subset = the full path and name of the file with IDs for the current subset, typically output from the assign_ancestral_categories.R script
 
 lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
 
@@ -50,7 +51,7 @@ while getopts 'o:i:f:s:g:p:l:m:c:zxdh' flag; do
     s) snp_names_file="${OPTARG}" ;;\
     z) do_unzip='true' ;;
     g) preimputation_geno_X="${OPTARG}" ;;
-    c) current_subset="${OPTARG}" ;;
+    c) subset="${OPTARG}" ;;
     p) autosomal_stem="${OPTARG}" ;;
     l) lab="${OPTARG}" ;;
     m) plink_memory_limit="${OPTARG}";;
@@ -82,7 +83,7 @@ printf "\nOutput file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : ${imputation_results_folder}
 Sex information file : ${sex_file}
 Stem for files for SNP name conversion : ${snp_names_file}_chrX
-File for subsetting to the current set: ${current_subset}
+File for subsetting to the current set: ${subset}
 Label for the current set: ${lab}
 Autosomal plink files for removing heterozygosity/PC outliers: ${autosomal_stem}\n"
 
@@ -101,24 +102,24 @@ fi
 
 ################ testing whether doing comma separated arguments for subsetting is going to work
 
-if [ "$( echo $current_subset | grep ',' )" ];
+if [ "$( echo $subset | grep ',' )" ];
 then
     printf "Multiple subsets supplied. Validating these inputs...\n"
 
-    # make arrays
-    IFS=',' read -r -a current_subset <<< "$current_subset"
+    # make arrays from the comma separated arguments
+    IFS=',' read -r -a subset <<< "$subset"
     IFS=',' read -r -a lab <<< "$lab"
     IFS=',' read -r -a autosomal_stem <<< "$autosomal_stem"
     
     #test array lengths to make sure they are the same
-    if [ "${#current_subset[@]}" = "${#lab[@]}" ] && [ "${#lab[@]}" = "${#autosomal_stem[@]}" ]; 
+    if [ "${#subset[@]}" = "${#lab[@]}" ] && [ "${#lab[@]}" = "${#autosomal_stem[@]}" ]; 
     then
-	for index in "${!array[@]}"
+	for index in "${!subset[@]}"
 	do
 	    #validate the file for the current subset
-	    if [ ! -f "${current_subset[index]}" ];
+	    if [ ! -f "${subset[index]}" ];
 	    then
-		printf "Cannot see the file to subset to the subset (${current_subset[index]})! Please check the argument supplied to -c and try again! \n"
+		printf "Cannot see the file to subset to the subset (${subset[index]})! Please check the argument supplied to -c and try again! \n"
 		exit 1
 	    fi
 
@@ -131,7 +132,7 @@ then
 	done
     else
 	printf "Please supply the same number of subset files, labels, and final autosomal plink stems. Below are the supplied inputs. Please check, fix, and reattempt.\n"
-	printf "Current subset files: ${current_subset}\nSubset labels: ${lab}\nFinal autosomal files: ${autosomal_stem}\n"
+	printf "Subset files: ${subset}\nSubset labels: ${lab}\nFinal autosomal files: ${autosomal_stem}\n"
 	exit 1
     fi
 fi
@@ -211,8 +212,8 @@ then
     variants=$( grep 'variants' ${output}.log | awk '{ print $1 }' )
     printf "$samples samples and $variants variants\n\n"
 else
-    output=$output_stem
-    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
+    output=${output_stem}_chrX_temp_nodups_names
+    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex. Assuming the X chr file stem is $output\n"
 fi
 
 #update SNP names, sex, and perform standard SNP filtering
@@ -233,145 +234,161 @@ grep -e "people updated" ${output}.log
 
 ################################## subset to the current dataset ######################################3
 
-printf "\nStep 5: Subset to samples present in ${lab}\n"
+printf "\nAll steps from this point on are specific to each subset. There will be ${#subset[@]} subsets.\n"
 
-### Imputed set
-output_last=${output}
-output=${output}_${lab}_geno05
-plink --bfile ${output_last} --keep ${current_subset} --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
-samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
-variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-printf "Subsetted to samples present in ${lab} in imputed set, leaving ${samples} samples and ${variants} variants.\n"
+presubset_output=$output
 
-### Genotyped set
-output_geno=${output_folder}/${geno_stem}_${lab}_geno05
-plink --bfile ${preimputation_geno_X} --keep ${current_subset} --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
-samples=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $4 }' )
-variants=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $1 }' )
-printf "Subsetted to samples present in ${lab} in genotyped set, leaving ${samples} samples and ${variants} variants.\n"
+for index in "${!subset[@]}" ; 
+do 
+    current_subset="${subset[index]}"
+    current_lab="${lab[index]}"
+    current_autosomal_stem="${autosomal_stem[index]}"
+
+    printf "\nBeginning the rest of post-imputation QC for ${current_lab}.\nFile for initial subsetting: ${current_subset}\nPlink stem for final subsetting: ${current_autosomal_stem}\n"
+
+    printf "\nStep 5 (${current_lab}): Subset to samples present in ${current_lab}\n"
+
+    ### Imputed set
+    output_last=${presubset_output}
+    output=${output}_${current_lab}_geno05
+    plink --bfile ${output_last} --keep ${current_subset} --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
+    samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+    variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+    printf "Subsetted to samples present in ${current_lab} in imputed set, leaving ${samples} samples and ${variants} variants.\n"
+
+    ### Genotyped set
+    output_geno=${output_folder}/${geno_stem}_${current_lab}_geno05
+    plink --bfile ${preimputation_geno_X} --keep ${current_subset} --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
+    samples=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $4 }' )
+    variants=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $1 }' )
+    printf "Subsetted to samples present in ${current_lab} in genotyped set, leaving ${samples} samples and ${variants} variants.\n"
 
 
-###### merge back in genotypes #####
+    ###### merge back in genotypes #####
 
-printf "\nStep 6: Merging back in the original genotypes.\n"
+    printf "\nStep 6 (${current_lab}): Merging back in the original genotypes.\n"
 
-# the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
-# this step was performed in part2, however, keeping it for robustness
-printf "Updating pre-imputation variant IDs to TOPMED imputation server format chrX:POS:REF:ALT...\n"
-output_last_geno=$output_geno
-output_geno=${output_geno}_varID
-awk '{ print "chrX:"$4":"$6":"$5,$2}' ${output_last_geno}.bim > ${output_geno}.txt
-plink --bfile ${output_last_geno} --update-name ${output_geno}.txt 1 2 --make-bed $plink_memory_limit --out ${output_geno} > /dev/null
+    # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
+    # this step was performed in part2, however, keeping it for robustness
+    printf "Updating pre-imputation variant IDs to TOPMED imputation server format chrX:POS:REF:ALT...\n"
+    output_last_geno=$output_geno
+    output_geno=${output_geno}_varID
+    awk '{ print "chrX:"$4":"$6":"$5,$2}' ${output_last_geno}.bim > ${output_geno}.txt
+    plink --bfile ${output_last_geno} --update-name ${output_geno}.txt 1 2 --make-bed $plink_memory_limit --out ${output_geno} > /dev/null
 
-# update to RSIDs
-printf "Now updating pre-imputation variant IDs to RSID...\n"
-output_last_geno=$output_geno
-output_geno=${output_geno}_rsid
-plink --bfile ${output_last_geno} --update-name ${snp_names_file}_chrX.txt --make-bed $plink_memory_limit --out ${output_geno} > /dev/null
- 
-# the genotyped variant ids to exclude
-awk '{ print $2 }' ${output_geno}.bim > ${output_geno}_genotyped_variants.txt
+    # update to RSIDs
+    printf "Now updating pre-imputation variant IDs to RSID...\n"
+    output_last_geno=$output_geno
+    output_geno=${output_geno}_rsid
+    plink --bfile ${output_last_geno} --update-name ${snp_names_file}_chrX.txt --make-bed $plink_memory_limit --out ${output_geno} > /dev/null
 
-# remove variants in the imputation file for which there are genotypes
-output_last=$output
-output=${output}_nogeno
-plink --bfile ${output_last} --exclude ${output_geno}_genotyped_variants.txt --make-bed $plink_memory_limit --out $output > /dev/null
-printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
+    # the genotyped variant ids to exclude
+    awk '{ print $2 }' ${output_geno}.bim > ${output_geno}_genotyped_variants.txt
 
-# merge the genotyped and imputed data
-## note: not updating variable names until after the check for same-position variants
-plink --bfile ${output} --bmerge ${output_geno} --make-bed $plink_memory_limit --out ${output}_merged > /dev/null
+    # remove variants in the imputation file for which there are genotypes
+    output_last=$output
+    output=${output}_nogeno
+    plink --bfile ${output_last} --exclude ${output_geno}_genotyped_variants.txt --make-bed $plink_memory_limit --out $output > /dev/null
+    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
 
-#check for complete sample overlap in the log and throw an error if there is not complete overlap
-new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
-if [ "$new_samples" != 0 ];
-then
-    printf "There is incomplete overlap between the genotype and imputed fam files! Please ensure you input the correct genotypes and resolve any issues. (Hint: Check how many people whose ids were updated above and compare with the total. If fewer, then supply a race/sex file with all samples in the imputed files.)\n"
-    exit 1
-fi
+    # merge the genotyped and imputed data
+    ## note: not updating variable names until after the check for same-position variants
+    plink --bfile ${output} --bmerge ${output_geno} --make-bed $plink_memory_limit --out ${output}_merged > /dev/null
 
-#check for same position warnings
-sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
-if [ ! -z "$sameposwarnings" ] ;
-then
-    printf "Getting same position warnings. \n"
-    grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
-    plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
-    printf " Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
-    printf " Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
-    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
-    plink --bfile ${output}2 --bmerge ${output_geno} --make-bed --out ${output}_merged > /dev/null
+    #check for complete sample overlap in the log and throw an error if there is not complete overlap
+    new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
+    if [ "$new_samples" != 0 ];
+    then
+	printf "There is incomplete overlap between the genotype and imputed fam files! Please ensure you input the correct genotypes and resolve any issues. (Hint: Check how many people whose ids were updated above and compare with the total. If fewer, then supply a race/sex file with all samples in the imputed files.)\n"
+	exit 1
+    fi
 
-    #check for more warnings
+    #check for same position warnings
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
     if [ ! -z "$sameposwarnings" ] ;
     then
-        printf "\nGetting more same position warnings! Please check and handle manually!\n"
+	printf "Getting same position warnings. \n"
+	grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
+	plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
+	printf " Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
+	printf " Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
+	printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
+	plink --bfile ${output}2 --bmerge ${output_geno} --make-bed --out ${output}_merged > /dev/null
+
+	#check for more warnings
+	sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
+	if [ ! -z "$sameposwarnings" ] ;
+	then
+	    printf "\nGetting more same position warnings! Please check and handle manually!\n"
+	fi
     fi
-fi
-#update output variable
-output=${output}_merged
-printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
-printf "Output file: ${output} \n"
+    #update output variable
+    output=${output}_merged
+    printf "After merging in genotypes, there are $( grep "pass filters and QC" ${output}.log | sed 's/pass filters and QC.//' ).\n"
+    printf "Output file: ${output} \n"
 
 
-################################## SNP filters ###########################
+    ################################## SNP filters ###########################
 
-# SNP filters
-printf "\nStep 7: SNP filters (HWE and MAF)\nHardy Weinberg equilibrium 1e6 based on females as only females are diploids XX  \n"
+    # SNP filters
+    printf "\nStep 7 (${current_lab}): SNP filters (HWE and MAF)\nHardy Weinberg equilibrium 1e6 based on females as only females are diploids XX  \n"
 
-if [  "$n_sex" = 1 ] && [ "${sex}" = 1 ];
-then
-        printf "\nSkipping Hardy Weinberg equilibrium 1e6 based on females: only males present \n"
-else
+    if [  "$n_sex" = 1 ] && [ "${sex}" = 1 ];
+    then
+	    printf "\nSkipping Hardy Weinberg equilibrium 1e6 based on females: only males present \n"
+    else
 
-	output_last=${output}
-	output_fem=${output}_1e6femHWE
-	output=${output}_femHWE6
+	    output_last=${output}
+	    output_fem=${output}_1e6femHWE
+	    output=${output}_femHWE6
 
-	# get list of SNPS to subset to based on HWE test in females
-	plink --bfile ${output_last} --filter-females --hwe 0.000001 $plink_memory_limit --make-bed --out ${output_fem}  > /dev/null
-	awk '{print $2}' ${output_fem}.bim > ${output_fem}_SNPs.txt
-	# extract those variants in the whole sample
-	plink --bfile ${output_last} --extract ${output_fem}_SNPs.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
+	    # get list of SNPS to subset to based on HWE test in females
+	    plink --bfile ${output_last} --filter-females --hwe 0.000001 $plink_memory_limit --make-bed --out ${output_fem}  > /dev/null
+	    awk '{print $2}' ${output_fem}.bim > ${output_fem}_SNPs.txt
+	    # extract those variants in the whole sample
+	    plink --bfile ${output_last} --extract ${output_fem}_SNPs.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
 
-	printf " Input: ${output_last} \n"
-	grep -e 'variants loaded from .bim file' ${output_fem}.log
-	grep -e "hwe: " ${output_fem}.log
-	grep -e 'pass filters and QC' ${output}.log
+	    printf " Input: ${output_last} \n"
+	    grep -e 'variants loaded from .bim file' ${output_fem}.log
+	    grep -e "hwe: " ${output_fem}.log
+	    grep -e 'pass filters and QC' ${output}.log
 
-fi
+    fi
 
-output_last=$output
-output=${output}_maf01
-plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
-grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
+    output_last=$output
+    output=${output}_maf01
+    plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
+    grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
 
-# check no hh warnings on females and set hh to missing
-printf "\n Confirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
-# will have issues with males only cohort. skip this for male only
-plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
+    # check no hh warnings on females and set hh to missing
+    printf "\n Confirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
+    # will have issues with males only cohort. skip this for male only
+    plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
 
-# set hh missing
-output_last=$output
-output=${output}_nohh
-printf "\n set het. haploid genotypes missing in ${output}\n"
-plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
+    # set hh missing
+    output_last=$output
+    output=${output}_nohh
+    printf "\n set het. haploid genotypes missing in ${output}\n"
+    plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
 
-##### Step 8: Remove individuals based on final autosomal files #####
-printf "\nStep 9: Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
+    ##### Step 8: Remove individuals based on final autosomal files #####
+    printf "\nStep 8 (${current_lab}): Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
 
-output_last=${output}
-output=${output}_noout
-plink --bfile ${output_last} --keep ${autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
-samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
-variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-printf "$samples samples and $variants variants remaining.\n"
+    output_last=${output}
+    output=${output}_noout
+    plink --bfile ${output_last} --keep ${current_autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
+    samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+    variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+    printf "$samples samples and $variants variants remaining.\n"
 
-##make final file
-#output_last=$output
-#output=${output_stem}
-#plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
-#printf "\n Final X-chromosome plinkset: ${output_stem} \n X chromosome postimputation QC complete! \n"
-printf "\nFinal X-chromosome plinkset: ${output} \nX chromosome postimputation QC complete! \n"
+    ##make final file
+    #output_last=$output
+    #output=${output_stem}
+    #plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
+    #printf "\n Final X-chromosome plinkset: ${output_stem} \n X chromosome postimputation QC complete! \n"
+    printf "\nFinal X-chromosome plinkset for ${current_lab[index]}: ${output}\n"
+
+done
+
+printf "X chromosome post-imputation QC complete!\n"
