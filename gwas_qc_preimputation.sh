@@ -12,7 +12,7 @@ display_usage() {
 Completes the first stage in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, HWE filtering, and preparation for upload to the imputation server.
 
 Usage:
-SCRIPTNAME.sh -i [input_fileset] -o [output_stem] -r [race_file] -f [sex_file] -R [ref_file_stem] -b [input genome build] -m [plink_memory_limit] -n -c 
+SCRIPTNAME.sh -i [input_fileset] -o [output_stem] -f [sex_file] -R [ref_file_stem] -b [input genome build] -m [plink_memory_limit] -n -c 
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -34,7 +34,7 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 "
         }
 
-while getopts 'o:i:r:f:R:b:m:nch' flag; do
+while getopts 'o:i:f:R:b:m:nch' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;

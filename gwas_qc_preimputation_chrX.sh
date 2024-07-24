@@ -18,7 +18,7 @@ display_usage() {
 Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation. The phenotype column in .fam is updated with sex in process.
 
 Usage:
-gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -m [plink_memory_limit] -s -R [ref_file]
+gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -m [plink_memory_limit] -R [ref_file]
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -32,13 +32,12 @@ ref_file = the full file path and name for the reference panel
 
 plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
--s optional, to skip dup removal step after initial id format
 -h will show this usage
 "
         }
 
 skip_flag='false'
-while getopts 'o:i:f:b:R:m:sh' flag; do
+while getopts 'o:i:f:b:R:m:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
@@ -46,7 +45,6 @@ while getopts 'o:i:f:b:R:m:sh' flag; do
     b) build="${OPTARG}" ;;
     m) plink_memory_limit="${OPTARG}" ;;
     R) ref_file="${OPTARG}" ;;
-    s) skip_flag='true' ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
        exit 1;;
