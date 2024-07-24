@@ -99,10 +99,19 @@ input_stem=${input_fileset##*/}
 
 ###################################### Begin QC process #########################################
 
+###### format plinkset: update varIDs #####
+printf "\nStep 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates.\n"
+output=${output_stem}_stdnames
+## generate an ID with just variant info rather than rsID and shorten IDs that are too long
+awk '{if( length($5)>25 || length($6)>25) { print $2,$1"_"$4"_I_D"} else {print $2,$1"_"$4"_"$5"_"$6} }' ${input_fileset}.bim > ${output}.txt
+## update using plink
+plink --bfile ${input_fileset} --update-name ${output}.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
+
 ########## initial SNP filters ##########
 printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
-output=$( printf ${output_stem}_geno05_maf01 )
-plink --bfile $input_fileset --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
+output_last=${output}
+output=${output}_geno05_maf01
+plink --bfile $output_last --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
 
 # document
 ## get the number of variants dropped for initial variant filters
@@ -117,7 +126,9 @@ $variants variants\n"
 
 printf "Output file: $output \n\n"
 
-########## person missingness ##########
+############# initial sample filters #################
+
+###### person missingness ######
 printf '%s\n' "Step 2: remove subjects w/ >1% missingness"
 output_last=$output
 output=${output}_mind01
@@ -357,18 +368,32 @@ fi
 ########## remove same-position variants ##########
 
 printf "\nStep 10: Removing multi-allelic and duplicated variants.\n"
-awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_path}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 
+## first remove actual duplicated variants using plink
+## the --list-duplicate-vars with the suppress-first modifier checks for duplicates based on position and allele (not ID)
+output_last=$output
+output=${output}_nodups
+plink --bfile $output_last --list-duplicate-vars ids-only suppress-first --out ${output_last}_dups $plink_memory_limit > /dev/null
+dupvars=$( wc -l < ${output_last}_dups.dupvar )
+printf "Removing $dupvars duplicate variants.\n"
+plink --bfile $output_last --exclude ${output_last}_dups.dupvar --make-bed --out $output $plink_memory_limit > /dev/null
+printf "Output file: $output \n"
+
+## now get variants that are at the same position. This will be only multi-allelic variants now. 
+awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_path}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
+## if there are any present, remove them
 if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
 then
     varssamepos=$( wc -l < ${output}_samepos_vars.txt )
     printf "Removing $varssamepos same-position variants.\n"
     plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos $plink_memory_limit > /dev/null
     output=${output}_nosamepos
-    grep ' people pass filters and QC' $output.log
     printf "Output file: $output\n"
+    # add up for documentation
+    varssamepos=$(($dupvars+$varssamepos))
 else 
-    printf "No multi-allelic or duplicated variants to remove.\n"
+    printf "No multi-allelic variants to remove.\n"
+    varssamepos=$dupvars
 fi
 
 ########## Imputation prep ##########
@@ -403,14 +428,14 @@ do
     printf "\nChr ${i} complete...\n"
 done
 
-#print out number of variants actually excluded or which would have been excluded
-varsmismatchref=$( cat ${output_path}/Exclude-* | wc -l )
-if [ "$noexclude" = true ];
-then 
-    printf "Would have removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
-else
-    printf "Removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation.\n"
-fi
+##print out number of variants actually excluded or which would have been excluded
+#varsmismatchref=$( cat ${output_path}/Exclude-* | wc -l )
+#if [ "$noexclude" = true ];
+#then 
+#    printf "Would have removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
+#else
+#    printf "Removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation.\n"
+#fi
 
 # document (format for the workflow)
 printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
