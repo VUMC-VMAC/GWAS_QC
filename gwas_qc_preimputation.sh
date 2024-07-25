@@ -58,11 +58,15 @@ then
     exit 1
 fi
 
+printf "GWAS QC Pre-imputation\n\n"
+
+# Print out singularity information for reproducability
+[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
+[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
+[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
 
 #print out inputs
-printf "GWAS QC Pre-imputation Script
-
-Input data : $input_fileset
+printf "\n\nInput data : $input_fileset
 Output stem : $output_stem 
 File with sex information : $sex_file
 Reference panel SNP file : $ref_file_stem
@@ -100,15 +104,17 @@ input_stem=${input_fileset##*/}
 ###################################### Begin QC process #########################################
 
 ###### format plinkset: update varIDs #####
-printf "\nStep 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates.\n"
+printf "\nStep 0: update varIDs to standard CHR_POS_REF_ALT format or CHR_POS_I_D for indels and remove duplicates.\n"
 output=${output_stem}_stdnames
 ## generate an ID with just variant info rather than rsID and shorten IDs that are too long
 awk '{if( length($5)>25 || length($6)>25) { print $2,$1"_"$4"_I_D"} else {print $2,$1"_"$4"_"$5"_"$6} }' ${input_fileset}.bim > ${output}.txt
+## add "DUPS" with the number of times that value has been seen to the IDs of duplicates
+awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${output}.txt > ${output}_temp && mv ${output}_temp ${output}.txt
 ## update using plink
 plink --bfile ${input_fileset} --update-name ${output}.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
 
 ########## initial SNP filters ##########
-printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
+printf '\n%s\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
 output_last=${output}
 output=${output}_geno05_maf01
 plink --bfile $output_last --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
@@ -301,7 +307,7 @@ output=${output}_hwe6
 
 # document
 ## get the number of variants dropped for initial variant filters
-varhwe=$(  grep "removed due to Hardy-Weinberg exact test" ${output}.log | awk '{print $1;}' )
+varhwe=$(  grep "removed due to Hardy-Weinberg exact test" ${output}.log | awk '{print $2;}' )
 printf "Removed $varhwe SNPs for HWE p<1e-6.\n"
 ## get the resulting number of samples and variants
 variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
@@ -401,8 +407,9 @@ fi
 printf "\nStep 11: Comparing with the reference panel and preparing files for imputation for each chromosome.\n"
 
 #make set with short name and freq file
-plink --bfile ${output} --allow-no-sex --freq --make-bed --out ${output}_freq $plink_memory_limit > /dev/null
-output=${output}_freq
+output_last=${output}
+output=${output_stem}_forimputation
+plink --bfile ${output_last} --allow-no-sex --freq --make-bed --out ${output} $plink_memory_limit > /dev/null
 
 #run the imputation checking script
 perl HRC-1000G-check-bim.pl -b ${output}.bim  -f ${output}.frq -r ${ref_file_stem}.txt.gz -h -n > /dev/null
@@ -428,15 +435,6 @@ do
     printf "\nChr ${i} complete...\n"
 done
 
-##print out number of variants actually excluded or which would have been excluded
-#varsmismatchref=$( cat ${output_path}/Exclude-* | wc -l )
-#if [ "$noexclude" = true ];
-#then 
-#    printf "Would have removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation, but the no-exclude option was specified.\n"
-#else
-#    printf "Removed $varsmismatchref variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}*-updated-chr*.bim | wc -l ) for imputation.\n"
-#fi
-
 # document (format for the workflow)
 printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
 ## get the resulting number of samples and variants
@@ -456,7 +454,7 @@ else
     printf "Skipping cleanup. Please manually remove unnecessary files.\n"
 fi
 
-printf "\nConversion complete! Upload the files (${output}-updated-chr${i}.vcf.gz) to the imputation server.\n"
+printf "\nConversion complete! Upload the files (${output}-updated-chr*.vcf.gz) to the imputation server.\n"
 
 # # get rid of all the bim files except the last one
 # ## make sure that it's only removing files from this set in case others are being run in the same folder
