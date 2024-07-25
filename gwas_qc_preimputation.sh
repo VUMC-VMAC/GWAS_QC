@@ -34,6 +34,8 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 "
         }
 
+# set default build 
+build=b37
 while getopts 'o:i:f:R:b:m:nch' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
@@ -58,7 +60,7 @@ then
     exit 1
 fi
 
-printf "GWAS QC Pre-imputation\n\n"
+printf "GWAS QC Pre-imputation\n"
 
 # Print out singularity information for reproducability
 [ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
@@ -72,6 +74,12 @@ File with sex information : $sex_file
 Reference panel SNP file : $ref_file_stem
 "
 
+# check the build argument
+if [ "$build" != "b36" && "$build" != "b37" && "$build" != "b38" ]; 
+then 
+    printf "Error: Invalid build argument supplied ($build). Please supply one of the following: b36, b37, b38.\n"
+    exit 1
+fi
 
 #check to make sure this is being run in the scripts folder (checking if necessary script is present)
 if test ! -f get_related_ids.R ;
