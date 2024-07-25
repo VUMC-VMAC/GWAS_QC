@@ -444,6 +444,8 @@ do
 done
 
 # document (format for the workflow)
+## calculate variants removed bc of mismatch with reference
+varsmismatchref=$(($( wc -l < ${output}.bim )-$( wc -l < ${output}-updated.bim )))
 printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
 ## get the resulting number of samples and variants
 variants=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $1;}' )
@@ -451,16 +453,17 @@ samples=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $4;}'
 printf "$samples samples
 $variants variants\n"
 
-#remove the intermediate .vcf and .bed files
-##make sure that it only removes the files from running this script, not the initial files or files for other datsets
-if [ "$skip_cleanup" = false ];
-then
-    rm ${output_path}/*.vcf
-    files_to_remove=$( find ${output_path}/${input_stem}_hwe6*.bed | grep -v "${output}.bed" | grep -v "${output}-updated.bed" )
-    rm $files_to_remove
-else
-    printf "Skipping cleanup. Please manually remove unnecessary files.\n"
-fi
+## commenting this out for now to prevent accidental deletion of files (since the pipeline has been updated)
+##remove the intermediate .vcf and .bed files
+###make sure that it only removes the files from running this script, not the initial files or files for other datsets
+#if [ "$skip_cleanup" = false ];
+#then
+#    rm ${output_path}/*.vcf
+#    files_to_remove=$( find ${output_path}/${input_stem}_hwe6*.bed | grep -v "${output}.bed" | grep -v "${output}-updated.bed" )
+#    rm $files_to_remove
+#else
+#    printf "Skipping cleanup. Please manually remove unnecessary files.\n"
+#fi
 
 printf "\nConversion complete! Upload the files (${output}-updated-chr*.vcf.gz) to the imputation server.\n"
 

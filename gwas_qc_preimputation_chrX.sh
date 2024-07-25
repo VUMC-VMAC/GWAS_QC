@@ -4,10 +4,6 @@
 # Aug 2021, Vaibhav Janve: script update to process X-chr
 # July 2024, ERM: SNPWeights update
 
-# VJ: singularity image and directories bound for reproducibility
-[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
-[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
-
 #fail on error
 set -e
 
@@ -36,7 +32,7 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
 "
         }
 
-skip_flag='false'
+build=b37
 while getopts 'o:i:f:b:R:m:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
@@ -60,13 +56,25 @@ then
 fi
 
 #print out inputs
-printf "GWAS QC for X Chromosome Preimputation 
+printf "GWAS QC for X Chromosome Preimputation\n" 
 
-Input data : $input_fileset
+# Print out singularity information for reproducability
+[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
+[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
+[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
+
+printf "\nInput data : $input_fileset
 Output stem : $output_stem
 File with sex information : $sex_file
 Reference panel SNP file : $ref_file
 "
+
+# check the build argument
+if [ "$build" != "b36" ] && [ "$build" != "b37" ] && [ "$build" != "b38" ]; 
+then 
+    printf "Error: Invalid build argument supplied ($build). Please supply one of the following: b36, b37, b38.\n"
+    exit 1
+fi
 
 # get X-chromosome SNP count
 n_x=$( awk '$1==23{print}' ${input_fileset}.bim | wc -l )
@@ -122,15 +130,17 @@ input_plinkset=${input_fileset##*/}
 ###################################### Initial variant filters ##################################################3
 
 ###### format plinkset: update varIDs #####
-printf "\nStep 0: update varIDs to standard CHR:POS:REF:ALT format or CHR:POS:I:D for indels and remove duplicates.\n"
+printf "\nStep 0: update varIDs to standard CHR_POS_REF_ALT format or CHR_POS_I_D for indels and remove duplicates.\n"
 output=${output_folder}/${input_plinkset}_stdnames
 ## generate an ID with just variant info rather than rsID and shorten IDs that are too long
 awk '{if( length($5)>25 || length($6)>25) { print $2,$1"_"$4"_I_D"} else {print $2,$1"_"$4"_"$5"_"$6} }' ${input_fileset}.bim > ${output}.txt
+## add "DUPS" with the number of times that value has been seen to the IDs of duplicates
+awk 'seen[$2]++{$2=$2"_DUPS_"seen[$2]} 1' ${output}.txt > ${output}_temp && mv ${output}_temp ${output}.txt
 ## update using plink
 plink --bfile ${input_fileset} --update-name ${output}.txt $plink_memory_limit --make-bed --out ${output}  > /dev/null
 
-########## initial SNP filters ##########                                                                                                          
-printf '%s\n\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
+########## initial SNP filters ##########
+printf '\n%s\n' "Step 1: Remove SNPs with >5% missingness or with MAF <0.01"
 output_last=${output}
 output=${output}_geno05_maf01
 plink --bfile $output_last --geno 0.05 --maf 0.01 --make-bed --out $output $plink_memory_limit > /dev/null
@@ -230,12 +240,10 @@ fi
 plink --bfile $output --check-sex --out ${output}_checking_sex $plink_memory_limit > /dev/null
 grep -e 'check-sex: ' ${output}_checking_sex.log
 
-
 #write mismatched sex iids in text file
 awk '{ if($5=="PROBLEM" && $4 != 0 && $3 != 0) print $1" "$2 }' ${output}_checking_sex.sexcheck > ${output}_mismatched_sex_ids.txt
 printf "$( wc -l < ${output}_mismatched_sex_ids.txt ) real sex mismatches (e.g. not ambiguous in the fam or indeterminate based on SNPs)
 $( awk '{ if($3 == 0) print }' ${output}_checking_sex.sexcheck | wc -l ) out of $( wc -l < ${output}.fam ) samples are missing sex.\n"
-
 
 #remove individuals in text file
 if [ $( wc -l < ${output}_mismatched_sex_ids.txt ) -gt 0 ];
@@ -295,13 +303,11 @@ printf " --merge-x: 0 chromosome codes changed.\n no chr 25 found. Please confir
 printf "Now, split PAR region from X chr.\n"
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_in}_splitX
-printf " Input: ${plinkset_x_in} \n"
-printf " Output: ${plinkset_x_out} \n"
 plink --bfile ${plinkset_x_in} --split-x ${build} no-fail --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 grep -e 'split-x: ' ${plinkset_x_out}.log ||
 printf " --split-x: 0 chromosome codes changed.\n no chr 25 found. Please confirm %s\n" ${plinkset_x_out}.log  >&2
 
-printf '%s\n\n' "Now, setting het. haploid genotypes missing."
+printf '%s\n' "Now, setting het. haploid genotypes missing."
 # set hh missing to deal with het haplotype warning (since after sex check)
 # check no hh warnings on females and set hh to missing
 if [  $n_sex -eq 1 ] && [ ${sex} -eq 1 ];
@@ -315,7 +321,7 @@ fi
 # set hh missing
 plinkset_x_in=${plinkset_x_out}
 plinkset_x_out=${plinkset_x_out}_nohh
-printf "\n set het. haploid genotypes missing in ${plinkset_x_out}\n"
+printf "\nSet het. haploid genotypes missing in ${plinkset_x_out}\n"
 plink --bfile ${plinkset_x_in} --set-hh-missing --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
 ## now that all other variants have been split or removed, subset to chr 23 variants only
@@ -362,7 +368,7 @@ else
     plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
     # document
-    printf "\n Removed $(wc -l < ${plinkset_x_in}_diffmiss_to_drop.txt) SNPs with male/female differential missingness.\n"
+    printf "\nRemoved $(wc -l < ${plinkset_x_in}_diffmiss_to_drop.txt) SNPs with male/female differential missingness.\n"
     ## get the resulting number of samples and variants                             
     variants=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
@@ -387,7 +393,7 @@ else
     plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out_fem}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
     # document
-    printf "\n Removed $(wc -l < ${plinkset_x_out_fem}_SNPs.txt) SNPs for HWE p<1e-6 in females.\n"
+    printf "\nRemoved $(wc -l < ${plinkset_x_out_fem}_SNPs.txt) SNPs for HWE p<1e-6 in females.\n"
     ## get the resulting number of samples and variants                             
     variants=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
@@ -407,8 +413,8 @@ awk '{ if( ($5 == "A" && $6 == "T") || ($5 == "T" && $6 == "A") || ($5 == "C"  &
 output_last=$plinkset_x_out
 output=${plinkset_x_out}_nopal
 plink --bfile $output_last --exclude ${output_folder}/palindromic_snps.txt --output-chr M --make-bed --out $output > /dev/null
-printf "Removed $( wc -l < ${output_folder}/palindromic_snps.txt ) palindromic variants.\n"
-grep ' people pass filters and QC' ${output}.log
+varspalindromic=$( wc -l < ${output_folder}/palindromic_snps.txt )
+printf "Removed $varspalindromic palindromic variants.\n"
 printf "Output file: $output \n"
 
 #check the build, decide whether to do the liftOver and, if so, which chain file to use
@@ -438,7 +444,8 @@ then
     #get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
     grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
     awk '{ print $4 }' ${output}_unlifted.txt | sort -u >> ${output}_lift_issue_snps_todrop.txt
-    printf "Removing $( wc -l < ${output}_lift_issue_snps_todrop.txt ) variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
+    varsfaillift=$( wc -l < ${output}_lift_issue_snps_todrop.txt )
+    printf "Removing $varsfaillift variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | sort -u | wc -l ) not present in b38).\n"
 
     #drop 
     plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --output-chr M --make-bed --out ${output}_noprobSNPs > /dev/null
@@ -465,9 +472,10 @@ printf "Output file: $output \n"
 ## now get variants that are at the same position. This will be only multi-allelic variants now.
 awk '{ print $2" "$1"_"$4 }' ${output}.bim | sort -T ${output_folder}/ -k2 | uniq -f1 -D | awk '{ print $1 }' > ${output}_samepos_vars.txt
 ## if there are any present, remove them
-if [ "$( wc -l < ${output}_samepos_vars.txt )" -gt 0 ];
+varssamepos=$( wc -l < ${output}_samepos_vars.txt )
+if [ "$varssamepos" -gt 0 ];
 then
-    printf "Removing $( wc -l < ${output}_samepos_vars.txt ) same-position variants.\n"
+    printf "Removing $varssamepos same-position variants.\n"
     plink --bfile ${output} --exclude ${output}_samepos_vars.txt --make-bed --out ${output}_nosamepos > /dev/null
     output=${output}_nosamepos
     printf "Output file: $output\n"
@@ -501,11 +509,13 @@ fi
 sed -i "s|rm TEMP|rm ${output_folder}/TEMP|" ${output_folder}/Run-plink.sh
 sh ${output_folder}/Run-plink.sh > /dev/null 2>&1
 
+## calculate variants removed bc of mismatch with reference
+varsmismatchref=$(($( wc -l < ${output}.bim )-$( wc -l < ${output}-updated-chr23.bim )))
+
 printf "\n update variant IDs to TOPMED imputation server format chrX:POS:REF:ALT \n"
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 output_last=${output}-updated-chr23
 output=${output_last}_TOPMED_varID
-
 awk '{ print "chrX:"$4":"$6":"$5,$2}' ${output_last}.bim > ${output_last}_TOPMED_varID.txt
 
 plink --bfile ${output_last} --update-name ${output_last}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output}  > /dev/null
@@ -519,7 +529,6 @@ printf "Output: ${output} \n"
 grep -e ' people pass filters and QC' ${output}.log
 
 #run imputation prep
-
 #update chr code to have chr# rather than just #, sort and output vcf
 printf "Sorting vcf and updating chromosome code for imputation server...\n"
 mkdir ${output_folder}/tmpX/
@@ -537,11 +546,11 @@ printf "Sorting complete.\n\n"
 #    printf "Removed $( cat ${output_folder}/Exclude-* | wc -l ) variants for mismatch with the reference panel, being palindromic with MAF > 0.4, or being absent from the reference panel leaving $( cat ${output}.bim | wc -l ) for imputation.\n"
 #fi
 
-# document (format for the workflow)                                                                                                               
+# document (format for the workflow)
 printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
 ## get the resulting number of samples and variants                                                                                                
-variants=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $1;}' )
-samples=$( grep "pass filters and QC" ${output}*-updated.log | awk '{print $4;}' )
+variants=$( grep "pass filters and QC" ${output}*.log | awk '{print $1;}' )
+samples=$( grep "pass filters and QC" ${output}*.log | awk '{print $4;}' )
 printf "$samples samples                                                                                                                           
 $variants variants\n"
 
