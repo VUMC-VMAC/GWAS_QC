@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 #fail on error
@@ -55,6 +54,13 @@ done
 
 ########################################## Input validation ##################################################
 
+printf "GWAS QC Post-imputation Script Part 1\n\n"
+
+# Print out singularity information for reproducability                                             
+[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
+[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
+[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
+
 #check to make sure necessary arguments are present
 if [ -z "$output_stem" ] || [ -z "$imputation_results_folder" ] || [ -z "$sex_file" ] || [ -z "$snp_names_file" ] || [ -z "$snpweights_file" ];
 then
@@ -64,13 +70,13 @@ then
 fi
 
 #print out inputs
-printf "GWAS QC Post-imputation Script Part 1
-
-Output file path and stem for cleaned imputed files : $output_stem
+printf "\nOutput file path and stem for cleaned imputed files : $output_stem
 Imputation results folder : $imputation_results_folder
 Sex information file : $sex_file
 Stem for files for SNP name conversion : $snp_names_file
 "
+
+# indicate whether results will be unzipped
 if [ "$do_unzip" = 'false' ];
 then 
     printf "The -z was not specified so imputation results must already be unzipped.\n"
@@ -159,23 +165,17 @@ then
 	for j in $dup_pos ; do grep -w $j ${output_stem}_chr${i}_temp.bim | awk '{ print $2 }' >> ${output_stem}_chr${i}.dups ; done
 	plink2 --bfile ${output_stem}_chr${i}_temp --exclude ${output_stem}_chr${i}.dups --make-bed --out ${output_stem}_chr${i}_temp_nodups $plink_memory_limit > /dev/null
 	
-	#update variant names with rs numbers
-	plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names $plink_memory_limit > /dev/null
-	
-	#check the length of variant IDs
-	awk 'length($2)>30{ print $2" "$1"_"$4 }' ${output_stem}_chr${i}_temp_nodups_names.bim > ${output_stem}_chr${i}_temp_nodups_names_shortids.txt
-	# if there are IDs to update, then update them
-	# either way, add the appropriate file name to the merge-list
-	if [ $(ls ${output_stem}_chr${i}_temp_nodups_names_shortids.txt) ] ;
+	# if there are no rs numbers, then update snp names using the file provided
+	if [ -z "$( grep 'rs' ${output_stem}_chr${i}_temp_nodups.bim )" ]; 
 	then
-	    plink --bfile ${output_stem}_chr${i}_temp_nodups_names --update-name ${output_stem}_chr${i}_temp_nodups_names_shortids.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names_shorterids $plink_memory_limit > /dev/null ; 
-	    printf "Updating $( grep 'updated' ${output_stem}_chr${i}_temp_nodups_names_shorterids.log | awk '{ print $2 }') too-long IDs from chr ${i}...\n" ; 
-	    printf "${output_stem}_chr${i}_temp_nodups_names_shorterids\n" >> ${output_stem}_merge_list.txt
-	else
-	    printf "IDs in chr ${i} ok.\n"
+	    ##update variant names with rs numbers
+	    plink2 --bfile ${output_stem}_chr${i}_temp_nodups --update-name ${snp_names_file}_chr${i}.txt --make-bed --out ${output_stem}_chr${i}_temp_nodups_names $plink_memory_limit > /dev/null
 	    printf "${output_stem}_chr${i}_temp_nodups_names\n" >> ${output_stem}_merge_list.txt ;
+	else
+	    # if there are rs numbers in the file, then simply add this file name to the merge list
+	    printf "${output_stem}_chr${i}_temp_nodups\n" >> ${output_stem}_merge_list.txt ;
 	fi
-
+    
     done
 
     #print out numbers of variants
@@ -201,7 +201,7 @@ fi
 
 ################################################# Step 3: Update SNP names and add sex to fam ##########################################
 
-printf "\nStep 3: Updating sample and variant names and adding sex back to the fam file.\n"
+printf "\nStep 3: Updating IDs and adding sex back to the fam file.\n"
 
 #### Updating person ids and sex ####
 #update person ids using the sex file

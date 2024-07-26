@@ -90,7 +90,7 @@ Autosomal plink files for removing heterozygosity/PC outliers: ${autosomal_stem}
 # indicate whether results will be unzipped
 if [ "$do_unzip" = 'false' ];
 then 
-    printf "The -z was not specified so imputation results must already be unzipped.\n\n"
+    printf "The -z was not specified so imputation results must already be unzipped.\n"
 fi
 
 #validate the genotyped files
@@ -100,8 +100,7 @@ then
     exit 1
 fi
 
-################ testing whether doing comma separated arguments for subsetting is going to work
-
+## process arguments for the current subsets
 if [ "$( echo $subset | grep ',' )" ];
 then
     printf "Multiple subsets supplied. Validating these inputs...\n"
@@ -172,52 +171,66 @@ geno_stem=${preimputation_geno_X##*/}
 
 ################# Start the post-imputation QC ######################
 
-if [ "$do_unzip" = 'true' ];
-then
-    #unzip imputation results using password
-    printf "Step 1 : Unzipping imputation results for chr X\n\n"
-    unzip -P $( cat ${imputation_results_folder}/pass.txt ) ${imputation_results_folder}/chr_X.zip -d $imputation_results_folder
-else
-    #make sure the imputation results are actually unzipped
-    if test ! -f ${imputation_results_folder}/chrX.dose.vcf.gz ;
-    then 
-	printf "The -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chrX.dose.vcf.gz)! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
-	exit 1
-    else
-	printf "Step 1 (unzipping the imputation results) is already complete. Proceeding the step 2...\n\n"
-    fi
-fi
 
 if [ $skip_first_filters = 'false' ];
 then
-    #filter imputation results for R2<0.8 and remove multi-allelic variants (multiple rows in vcf->bim)
-    printf "Step 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
+
+    ####################### Step 1: Unzipping imputation results #######################
+    if [ "$do_unzip" = 'true' ];
+    then
+	#unzip imputation results using password
+	printf "\nStep 1 : Unzipping imputation results for chr X\n\n"
+	unzip -P $( cat ${imputation_results_folder}/pass.txt ) ${imputation_results_folder}/chr_X.zip -d $imputation_results_folder
+    else
+	#make sure the imputation results are actually unzipped
+	if test ! -f ${imputation_results_folder}/chrX.dose.vcf.gz ;
+	then 
+	    printf "\nThe -z was not specified but cannot find the imputation results (ie ${imputation_results_folder}/chrX.dose.vcf.gz)! Please check whether imputation results have been unzipped. If they haven't, make sure the decryption password is saved in ${imputation_results_folder}/pass.txt and specify the -z flag. \n"
+	    exit 1
+	else
+	    printf "\nStep 1 (unzipping the imputation results) is already complete. Proceeding the step 2...\n\n"
+	fi
+    fi
+
+    ####################### Step 2: Filter for R2 and multi-allelic variants, update SNP names, and merge chr together #######################
+    printf "\nStep 2 : Filtering imputation results for R2<0.8 and multi-allelic variants\n"
 
     #restrict to variants with R2>=0.80    
     plink2 --vcf ${imputation_results_folder}/chrX.dose.vcf.gz --const-fid 0 --exclude-if-info "R2<0.8" $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp > /dev/null;
-    # exclude duplicate variants
+    # exclude multi-allelic variants
     awk '{ print $2,$4 }' ${output_stem}_chrX_temp.bim | uniq -f1 -D | awk '{print $1}' >> ${output_stem}_chrX.dups
     plink2 --bfile ${output_stem}_chrX_temp --exclude ${output_stem}_chrX.dups $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp_nodups > /dev/null;
-    # update name with rs numbers
-    plink2 --bfile ${output_stem}_chrX_temp_nodups --update-name ${snp_names_file}_chrX.txt $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp_nodups_names > /dev/null; 
-	
+
+    # if there are missing rs numbers, then update with the snp names file provided
+    if [ -z "$( grep -m 1 'rs' ${output_stem}_chrX_temp_nodups.bim )" ];
+    then
+	# update name with rs numbers
+	plink2 --bfile ${output_stem}_chrX_temp_nodups --update-name ${snp_names_file}_chrX.txt $plink_memory_limit --make-bed --out ${output_stem}_chrX_temp_nodups_names > /dev/null; 
+        output=${output_stem}_chrX_temp_nodups_names
+    else
+	# if there are rs numbers are already present, then set this as the output stem and move on
+        output=${output_stem}_chrX_temp_nodups
+    fi
+
     #print out numbers of variants
-    total_var=$(( $(grep "out of" ${output_stem}_chr*_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-    afterR2=$( cat ${output_stem}_chr*_temp.bim | wc -l )
-    nomulti=$( cat ${output_stem}_chr*_temp_nodups.bim | wc -l )
+    total_var=$(( $(grep "out of" ${output_stem}_chrX_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
+    afterR2=$( cat ${output_stem}_chrX_temp.bim | wc -l )
+    nomulti=$( cat ${output_stem}_chrX_temp_nodups.bim | wc -l )
     printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
     
-    output=${output_stem}_chrX_temp_nodups_names
+
     samples=$( grep 'samples' ${output}.log | awk '{ print $1 }' )
     variants=$( grep 'variants' ${output}.log | awk '{ print $1 }' )
     printf "$samples samples and $variants variants\n\n"
 else
     output=${output_stem}_chrX_temp_nodups_names
-    printf "Skipping the conversion and filtering of the individual chromosome because the -x flag was supplied! Picking up at updating sample IDs and sex. Assuming the X chr file stem is $output\n"
+    printf "\nSkipping steps 1 and 2 (the unzipping, conversion, and filtering of the individual chromosome) because the -x flag was supplied. Picking up at updating sample IDs and sex. Assuming the X chr file stem is $output\n"
 fi
 
+############################ Step 3: Update SNP names and add sex to fam ######################
+
 #update SNP names, sex, and perform standard SNP filtering
-printf "Step 4 : Updating sex in the fam file and applying standard variant filters\n\n"
+printf "\nStep 3: Updating IDs and adding sex back to the fam file.\n"
 #update person ids using the race and sex file
 output_last=$output
 output=${output}_IDs
@@ -228,8 +241,10 @@ plink --bfile $output_last --update-ids ${output_last}_update_ids.txt $plink_mem
 output_last=$output
 output=${output}_sex
 plink --bfile ${output_last} --update-sex ${sex_file} $plink_memory_limit --make-bed --out ${output} > /dev/null
-printf "sex updated: ${sex_file} \n"
-grep -e "people updated" ${output}.log
+
+# log as a sanity check. Everyone should be updated. 
+tmp=$( grep "people updated" ${output}.log | awk '{ print $2 }' )
+printf "$tmp people whose ids and sex were able to be updated using the sex file.\n"
 
 
 ################################## subset to the current dataset ######################################3
@@ -246,12 +261,15 @@ do
 
     printf "\nBeginning the rest of post-imputation QC for ${current_lab}.\nFile for initial subsetting: ${current_subset}\nPlink stem for final subsetting: ${current_autosomal_stem}\n"
 
-    printf "\nStep 5 (${current_lab}): Subset to samples present in ${current_lab}\n"
+    printf "\nStep 4 (${current_lab}): Subset to samples present in ${current_lab}\n"
 
     ### Imputed set
     output_last=${presubset_output}
-    output=${output}_${current_lab}_geno05
+    output=${presubset_output}_${current_lab}_geno05
     plink --bfile ${output_last} --keep ${current_subset} --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
+    ## get the number of variants removed here for logging later. 
+    geno=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
+    ## report the number of samples and variants at this step
     samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
     variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
     printf "Subsetted to samples present in ${current_lab} in imputed set, leaving ${samples} samples and ${variants} variants.\n"
@@ -265,8 +283,7 @@ do
 
 
     ###### merge back in genotypes #####
-
-    printf "\nStep 6 (${current_lab}): Merging back in the original genotypes.\n"
+    printf "\nStep 5 (${current_lab}): Merging back in the original genotypes.\n"
 
     # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
     # this step was performed in part2, however, keeping it for robustness
@@ -283,17 +300,24 @@ do
     plink --bfile ${output_last_geno} --update-name ${snp_names_file}_chrX.txt --make-bed $plink_memory_limit --out ${output_geno} > /dev/null
 
     # the genotyped variant ids to exclude
+    printf "Now removing those variants from the imputed fileset...\n"
     awk '{ print $2 }' ${output_geno}.bim > ${output_geno}_genotyped_variants.txt
-
     # remove variants in the imputation file for which there are genotypes
     output_last=$output
     output=${output}_nogeno
     plink --bfile ${output_last} --exclude ${output_geno}_genotyped_variants.txt --make-bed $plink_memory_limit --out $output > /dev/null
-    printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }') variants remaining after removing genotyped variants from imputation results.\n"
+    
+    # document the number removed                                                                              
+    startvar=$( grep "variants loaded from" ${output}.log | awk '{ print $1 }')
+    remaining_var=$( grep -e "variants remaining" ${output}.log | awk '{ print $2 }' )
+    imputed_geno=$(( $startvar - $remaining_var ))
+    printf "$remaining_var variants remaining after removing genotyped variants from imputation results.\n"
 
     # merge the genotyped and imputed data
-    ## note: not updating variable names until after the check for same-position variants
     plink --bfile ${output} --bmerge ${output_geno} --make-bed $plink_memory_limit --out ${output}_merged > /dev/null
+    ## calculate the number of genotyped (but not imputed) variants added                                      
+    merged_var=$( grep "pass filters" ${output}_merged.log | awk '{ print $1 }' )
+    geno_only=$(( $merged_var - $startvar ))
 
     #check for complete sample overlap in the log and throw an error if there is not complete overlap
     new_samples=$( grep "base dataset" ${output}_merged.log | awk 'NR==1{ print $3 }' )
@@ -307,12 +331,17 @@ do
     sameposwarnings=$( grep "Warning: Variants" ${output}_merged.log | head -n1 )
     if [ ! -z "$sameposwarnings" ] ;
     then
-	printf "Getting same position warnings. \n"
+	printf "Getting same position warnings. Removing those variants from the imputed data and re-attempting merge.\n"
+	# make a file with the variants at the same position
 	grep "Warning: Variants" ${output}_merged.log | awk  '{ print $3"\n"$5 }' | sed -e "s/'//g" >  ${output_folder}/genotyped_variants_sameposwarnings.txt
+	# remove those variants from imputed file
 	plink --bfile ${output} --exclude ${output_folder}/genotyped_variants_sameposwarnings.txt --make-bed --out ${output}2 > /dev/null
-	printf " Confirm variants in ${output_folder}/genotyped_variants_sameposwarnings.txt for same position \n"
-	printf " Removing $(wc -l < ${output_folder}/genotyped_variants_sameposwarnings.txt ) variants from the imputed dataset and re-attempting merge.\n"
-	printf "$(grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) variants remaining after removing genotyped variants from imputation results based on position.\n"
+	# get the number of variants removed
+	startvar=$( grep "variants loaded from" ${output}2.log | awk '{ print $1 }')
+	samepos=$( grep "variants remaining" ${output}2.log | awk '{ print $2 }' )
+	removed_var=$(( $startvar - $samepos ))
+	printf "${removed_var} variants at the same position in genotyped and imputed data. These variants were removed from the imputation results.\n"
+	## re-attempting merge
 	plink --bfile ${output}2 --bmerge ${output_geno} --make-bed --out ${output}_merged > /dev/null
 
 	#check for more warnings
@@ -331,7 +360,7 @@ do
     ################################## SNP filters ###########################
 
     # SNP filters
-    printf "\nStep 7 (${current_lab}): SNP filters (HWE and MAF)\nHardy Weinberg equilibrium 1e6 based on females as only females are diploids XX  \n"
+    printf "\nStep 6 (${current_lab}): Applying Hardy-Weinberg equilibrium and MAF filters.\nHardy Weinberg equilibrium 1e6 based on females as only females are diploids XX\n"
 
     if [  "$n_sex" = 1 ] && [ "${sex}" = 1 ];
     then
@@ -347,40 +376,48 @@ do
 	    awk '{print $2}' ${output_fem}.bim > ${output_fem}_SNPs.txt
 	    # extract those variants in the whole sample
 	    plink --bfile ${output_last} --extract ${output_fem}_SNPs.txt $plink_memory_limit --make-bed --out ${output} > /dev/null
-
-	    printf " Input: ${output_last} \n"
-	    grep -e 'variants loaded from .bim file' ${output_fem}.log
-	    grep -e "hwe: " ${output_fem}.log
-	    grep -e 'pass filters and QC' ${output}.log
-
+	    # document, but don't print yet
+	    hwe=$(( "$( wc -l < ${output_last}.bim )" - "$( wc -l < ${output_fem}.bim )" ))
+	    variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+	    samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
     fi
 
+    
     output_last=$output
     output=${output}_maf01
     plink --bfile ${output_last} --maf 0.01 $plink_memory_limit --make-bed --out ${output} > /dev/null
-    grep -e "removed due to minor allele threshold" -e 'pass filters and QC' ${output}.log
+    # document
+    maf=$( grep "removed due to minor allele threshold(s)" ${output}.log | awk '{print $1;}' )
+    variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+    samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
+
+    ## now print out numbers since variant exclusions are done
+    printf '%s\n' "Removed $geno SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01."
+    printf "$samples samples\n$variants variants\n"
 
     # check no hh warnings on females and set hh to missing
-    printf "\n Confirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
+    printf "\nConfirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
     # will have issues with males only cohort. skip this for male only
     plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
 
     # set hh missing
     output_last=$output
     output=${output}_nohh
-    printf "\n set het. haploid genotypes missing in ${output}\n"
+    printf "\nSetting het. haploid genotypes missing...\n"
     plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
-
-    ##### Step 8: Remove individuals based on final autosomal files #####
-    printf "\nStep 8 (${current_lab}): Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
+    ##### Step 7: Remove individuals based on final autosomal files #####
+    printf "\nStep 7 (${current_lab}): Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
 
     output_last=${output}
     output=${output}_noout
     plink --bfile ${output_last} --keep ${current_autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
-    samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+    final_samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
     variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-    printf "$samples samples and $variants variants remaining.\n"
+    # calculate number dropped based on final autosomal files
+    dropped_samples=$(( $samples - $final_samples ))
+    printf "Removed $dropped_samples samples based on autosomal heterozygosity and PC values.\n"
+    printf "$samples samples\n$variants variants\n"
 
     ##make final file
     #output_last=$output

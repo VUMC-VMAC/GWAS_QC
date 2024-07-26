@@ -10,13 +10,15 @@ display_usage() {
 This script will conclude the post-imputation process, performing the MAF and HWE filters, checking sample heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
-SCRIPTNAME.sh -o [input_file_stem] -g [preimputation_geno] -r [sample_ids] -l [subset_label] -c -p -m [plink_memory_flag]
+SCRIPTNAME.sh -o [input_file_stem] -g [preimputation_geno] -r [sample_ids] -l [subset_label] -c -p -m [plink_memory_flag] -s [snp_names_file]
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
 preimputation_geno = the full path and stem to the cleaned final pre-imputation files to be merged back into the final files
 
 sample_ids = the full path and name of the list of IDs for the subset to be QC'ed, output from the end of part 1 corresponding to one of the ancestral groups defined using SNPWeights
+
+snp_names_file = the file stem for converting the SNP names from imputation results to rs numbers. There should be one for each chromosome and each must have 2 columns: imputation result SNP ids and rs numbers. Can have header but it will be ignored. (In this script, is used for updating genotype variant IDs.)
 
 subset_label = the short label to identify this subset (will be added to the plink file name)
 
@@ -35,13 +37,14 @@ do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
 skip_pccalc='false'
-while getopts 'o:g:r:l:cpm:h' flag; do
+while getopts 'o:g:r:l:s:cpm:h' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     g) preimputation_geno="${OPTARG}" ;;
     r) sample_ids="${OPTARG}" ;;
     l) subset_label="${OPTARG}" ;;
     c) skip_cleanup='true' ;;
+    s) snp_names_file="${OPTARG}";;
     m) plink_memory_limit="${OPTARG}";;
     p) skip_pccalc='true' ;;
     h) display_usage ; exit ;;
@@ -52,8 +55,15 @@ done
 
 ########################################## Input validation ##################################################
 
+printf "GWAS QC Post-imputation Script, part 2\n"
+
+# Print out singularity information for reproducability
+[ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
+[ ! -z "$SINGULARITY_COMMAND" ] && printf "\nSingularity shell: $SINGULARITY_COMMAND"
+[ ! -z "$SINGULARITY_BIND" ] && printf "\nMapped directories:\n $SINGULARITY_BIND\n" | sed 's/,/\n /g'
+
 #check to make sure necessary arguments are present
-if [ -z "$output_stem" ] || [ -z "$preimputation_geno" ] || [ -z "$sample_ids" ] || [ -z "$subset_label" ];
+if [ -z "$output_stem" ] || [ -z "$preimputation_geno" ] || [ -z "$sample_ids" ] || [ -z "$subset_label" ] || [ -z "$snp_names_file" ];
 then
     printf "Error: Necessary arguments not present! Please supply input stem, pre-imputation genotype stem, and list of samples to be QC'ed in.\n\n"
     display_usage
@@ -61,12 +71,11 @@ then
 fi
 
 #print out inputs
-printf "GWAS QC Post-imputation Script, part 2
-
-Output file path and stem for cleaned imputed files : $output_stem
+printf "\nOutput file path and stem for cleaned imputed files : $output_stem
 Pre-imputation genotype file stem: $preimputation_geno
 Sample ID list: $sample_ids
 Subset label: $subset_label
+SNP names file: $snp_names_file
 "
 
 #validate the genotyped files
@@ -92,7 +101,7 @@ geno_stem=${preimputation_geno##*/}
 # get the starting numbers
 samples=$( grep "pass filters and QC" ${output_stem}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${output_stem}.log | awk '{ print $1 }' )
-printf "Starting sample and variant numbers:
+printf "\nStarting sample and variant numbers:
 $samples samples
 $variants variants\n"
 
@@ -102,6 +111,7 @@ printf "Subsetting imputed data samples in this set and filtering variants for m
 # Subset the imputed file
 output=${output_stem}_${subset_label}_geno05
 plink --bfile $output_stem --keep $sample_ids --geno 0.05 --make-bed --out $output $plink_memory_limit > /dev/null
+## get the number of variants removed here for logging later
 geno=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
 ## report the number of samples and variants at this step
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
@@ -116,23 +126,39 @@ samples=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $4 }' )
 variants=$( grep "pass filters and QC" ${geno_output}.log | awk '{ print $1 }' )
 printf "$samples samples and $variants variants remain in the genotyped data.\n"
 
+##### merge back in genotypes ######
 printf "Removing genotyped variants from imputed file...\n"
-# make file with all the genotyped variant ids
-awk '{ print $2 }' ${geno_output}.bim > ${output_folder}/${subset_label}_genotyped_variants.txt
 
-# remove variants for which there are genotypes from the bim file
+# Updating first to TOPMed IDs and then to rs numbers to allow for accurate removal of overlapping variants with imputed data (which has rs numbers)
+printf "First, updating genotyped file with rs numbers (by way of TOPMed variant IDs) to allow for more accurate removal of overlapping variants with imputed data.\n"
+## the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
+output_last_geno=$geno_output
+geno_output=${geno_output}_varID
+awk '{ print "chr"$1":"$4":"$6":"$5,$2}' ${output_last_geno}.bim > ${geno_output}.txt
+plink --bfile ${output_last_geno} --update-name ${geno_output}.txt 1 2 --make-bed $plink_memory_limit --out ${geno_output} > /dev/null
+## update to RSIDs
+output_last_geno=$geno_output
+geno_output=${geno_output}_rsid
+plink --bfile ${output_last_geno} --update-name ${snp_names_file}.txt --make-bed $plink_memory_limit --out ${geno_output} > /dev/null
+
+# Now remove those from the imputed fileset
+## make file with all the genotyped variant ids
+awk '{ print $2 }' ${geno_output}.bim > ${output_folder}/${subset_label}_genotyped_variants.txt
+## remove variants for which there are genotypes from the bim file
 output_last=$output
 output=${output}_nogeno
 plink --bfile ${output_last} --exclude ${output_folder}/${subset_label}_genotyped_variants.txt --make-bed --out $output $plink_memory_limit > /dev/null
+
+# document the number removed
 startvar=$( grep "variants loaded from" ${output}.log | awk '{ print $1 }')
 remaining_var=$( grep -e "variants remaining" ${output}.log | awk '{ print $2 }' ) 
 imputed_geno=$(( $startvar - $remaining_var ))
 printf "$remaining_var variants remaining after removing genotyped variants from imputation results.\n"
 
-# merge the genotyped and imputed data
+# Now, actually merge the genotyped and imputed data
 plink --bfile ${output} --bmerge ${geno_output} --make-bed --out ${output}_merged $plink_memory_limit > /dev/null
 ## calculate the number of genotyped (but not imputed) variants added
-merged_vars=$( grep "pass filters" ${output}_merged.log | awk '{ print $1 }' )
+merged_var=$( grep "pass filters" ${output}_merged.log | awk '{ print $1 }' )
 geno_only=$(( $merged_var - $startvar ))
 
 #check for complete sample overlap in the log and throw an error if there is not complete overlap
@@ -189,7 +215,7 @@ $variants variants\n"
 ########################################## Step 3: heterozygosity check ##################################################
 
 # prune for heterozygosity check
-printf "\n\nStep 3: Pruning and running heterozygosity check\n"
+printf "\nStep 3: Pruning and running heterozygosity check\n"
 plink --bfile ${output} --indep-pairwise 200 100 0.2 --allow-no-sex --out ${output}_prune $plink_memory_limit > /dev/null
 plink --bfile ${output} --output-missing-phenotype 1 --extract ${output}_prune.prune.in --make-bed --out ${output}_pruned $plink_memory_limit > /dev/null
 rm ${output}_prune.*

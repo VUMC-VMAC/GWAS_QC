@@ -546,10 +546,10 @@ printf "Sorting complete.\n\n"
 
 # document (format for the workflow)
 printf "\nSummary:\nRemoved $varspalindromic palindromic, $varsfaillift failing liftOver to b38 , $varssamepos same position SNPs, and $varsmismatchref SNPs not matching or not present in reference panel.\n"
-## get the resulting number of samples and variants                                                                                                
+## get the resulting number of samples and variants
 variants=$( grep "pass filters and QC" ${output}*.log | awk '{print $1;}' )
 samples=$( grep "pass filters and QC" ${output}*.log | awk '{print $4;}' )
-printf "$samples samples                                                                                                                           
+printf "$samples samples
 $variants variants\n"
 
 # commenting this out to prevent removal of files that ought to be kept
