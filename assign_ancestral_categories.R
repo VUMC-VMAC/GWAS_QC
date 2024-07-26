@@ -1,11 +1,11 @@
 args <- commandArgs(TRUE)
 inferanc <- args[1] #name of the inferred ancestry file with full path
 
-library(data.table)
-library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(forcats)
+suppressMessages(library(data.table))
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
+suppressMessages(library(forcats))
 
 # get the stem without the extension
 filestem <- gsub(".out", "", inferanc)
@@ -87,7 +87,7 @@ ancplot <- ancplot %>%
   )
 
 #Create ancestry names for plot
-ancestry_names <- list(
+ancestry_names <- c(
   '1'="European",
   '2'="AA",
   '3'="NatAmer",
@@ -95,9 +95,9 @@ ancestry_names <- list(
   '5'="CaribHisp",
   '6'="Admixed"
 )
-ancestry_labeller <- function(variable,value){
-  return(ancestry_names[value])
-}
+#ancestry_labeller <- function(variable,value){
+#  return(ancestry_names[value])
+#}
 
 #Create plot with ancestry estimates
 options(bitmapType='cairo')
@@ -115,5 +115,5 @@ ancplot %>%
         panel.spacing.x=unit(0.025, "lines"),
         strip.text.x = element_text(angle = 270),
         panel.grid = element_blank()) +
-  facet_grid(~Ancestry, scales="free_x", space="free_x", switch="x", drop = TRUE, labeller = ancestry_labeller)
+  facet_grid(~Ancestry, scales="free_x", space="free_x", switch="x", drop = TRUE, labeller = labeller(Ancestry = ancestry_names))
 dev.off()
