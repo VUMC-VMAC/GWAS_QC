@@ -253,11 +253,11 @@ then
     output=${output}_nomismatchedsex
     plink --bfile $output_last --remove ${sex_mismatch_file} --make-bed --out $output $plink_memory_limit > /dev/null
 
-    # document                                                                                                                                 
-    ## get the number of samples which fail sex check                                                                                          
+    # document
+    ## get the number of samples which fail sex check
     samplessex=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
     printf "Removed $sampelssex individuals with mismatched sex.\n"
-    ## get the resulting number of samples and variants                                                                                        
+    ## get the resulting number of samples and variants
     variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
     printf "$samples samples\n$variants variants\n"
@@ -332,8 +332,10 @@ plinkset_x_out=${plinkset_x_first}_X
 plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null    
 ## log the number of variants removed 
 n_x2=$( wc -l < ${plinkset_x_out}.bim )
-printf "Removed $(( ${n_x} - ${n_x2})) PARS SNPs.\n"
-## get the resulting number of samples and variants                                                                                                
+PARvars=(( ${n_x} - ${n_x2}))
+nonXchr=$(( "$( wc -l ${output}.bim )" - "$PARvars" - "$n_x2" ))
+printf "Removed $(( ${n_x} - ${n_x2})) PAR and $nonXchr non-X-chr SNPs.\n"
+## get the resulting number of samples and variants
 samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
 printf "$samples samples
 $n_x2 variants\n"
@@ -512,21 +514,17 @@ sh ${output_folder}/Run-plink.sh > /dev/null 2>&1
 ## calculate variants removed bc of mismatch with reference
 varsmismatchref=$(($( wc -l < ${output}.bim )-$( wc -l < ${output}-updated-chr23.bim )))
 
-printf "\n update variant IDs to TOPMED imputation server format chrX:POS:REF:ALT \n"
+printf "\nUpdate variant IDs to TOPMED imputation server format chrX:POS:REF:ALT \n"
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
 output_last=${output}-updated-chr23
 output=${output_last}_TOPMED_varID
 awk '{ print "chrX:"$4":"$6":"$5,$2}' ${output_last}.bim > ${output_last}_TOPMED_varID.txt
-
 plink --bfile ${output_last} --update-name ${output_last}_TOPMED_varID.txt 1 2 --make-bed $plink_memory_limit --out ${output}  > /dev/null
 
 # create VCF
 ## there was another filter to just chr 23 here as well as the --real-ref-alleles flag which has already been applied above and nothing would have changed the ref alleles
 ## since both were superfluous they were removed
 plink --bfile ${output} --recode-vcf --out ${output} $plink_memory_limit > /dev/null
-
-printf "Output: ${output} \n"
-grep -e ' people pass filters and QC' ${output}.log
 
 #run imputation prep
 #update chr code to have chr# rather than just #, sort and output vcf

@@ -75,7 +75,7 @@ Reference panel SNP file : $ref_file_stem
 "
 
 # check the build argument
-if [ "$build" != "b36" && "$build" != "b37" && "$build" != "b38" ]; 
+if [ "$build" != "b36" ] && [ "$build" != "b37" ] && [ "$build" != "b38" ]; 
 then 
     printf "Error: Invalid build argument supplied ($build). Please supply one of the following: b36, b37, b38.\n"
     exit 1
