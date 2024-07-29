@@ -267,8 +267,8 @@ do
     output_last=${presubset_output}
     output=${presubset_output}_${current_lab}_geno05
     plink --bfile ${output_last} --keep ${current_subset} --geno 0.05 --make-bed --out ${output} $plink_memory_limit > /dev/null
-    ## get the number of variants removed here for logging later. 
-    geno=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
+    ## print notice if there are variants removed at this step
+    if [[ $( grep "variants removed" ${output}.log | awk '{ print $1 }' ) -gt 0 ]]; then printf "Warning: There were variants removed for missingness from the imputed set when subsetting to ${current_lab}. This is unusual! Please check the imputed files!\n" ; fi
     ## report the number of samples and variants at this step
     samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
     variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
@@ -277,6 +277,9 @@ do
     ### Genotyped set
     output_geno=${output_folder}/${geno_stem}_${current_lab}_geno05
     plink --bfile ${preimputation_geno_X} --keep ${current_subset} --geno 0.05 --make-bed --out ${output_geno} $plink_memory_limit > /dev/null
+    ## get the number of variants removed here for logging later. 
+    geno=$( grep "variants removed" ${output_geno}.log | awk '{ print $1 }' )
+    ## report the number of samples and variants at this step
     samples=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $4 }' )
     variants=$( grep "pass filters and QC" ${output_geno}.log | awk '{ print $1 }' )
     printf "Subsetted to samples present in ${current_lab} in genotyped set, leaving ${samples} samples and ${variants} variants.\n"
@@ -392,7 +395,7 @@ do
     samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
 
     ## now print out numbers since variant exclusions are done
-    printf '%s\n' "Removed $geno SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01."
+    printf '%s\n' "Removed $geno genotyped SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01."
     printf "$samples samples\n$variants variants\n"
 
     # check no hh warnings on females and set hh to missing

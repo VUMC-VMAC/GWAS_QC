@@ -332,9 +332,10 @@ plinkset_x_out=${plinkset_x_first}_X
 plink --bfile ${plinkset_x_in} --chr 23 --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null    
 ## log the number of variants removed 
 n_x2=$( wc -l < ${plinkset_x_out}.bim )
-PARvars=(( ${n_x} - ${n_x2}))
-nonXchr=$(( "$( wc -l ${output}.bim )" - "$PARvars" - "$n_x2" ))
-printf "Removed $(( ${n_x} - ${n_x2})) PAR and $nonXchr non-X-chr SNPs.\n"
+PARvars=$(( ${n_x} - ${n_x2} ))
+autosomalvars=$( wc -l < ${output}.bim )
+nonXchr=$(( $autosomalvars - $PARvars - $n_x2 ))
+printf "Removed $PARvars PAR and $nonXchr non-X-chr SNPs.\n"
 ## get the resulting number of samples and variants
 samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
 printf "$samples samples
@@ -370,7 +371,7 @@ else
     plink --bfile ${plinkset_x_in} --exclude ${plinkset_x_in}_diffmiss_to_drop.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
     # document
-    printf "\nRemoved $(wc -l < ${plinkset_x_in}_diffmiss_to_drop.txt) SNPs with male/female differential missingness.\n"
+    printf "\nRemoved $( wc -l < ${plinkset_x_in}_diffmiss_to_drop.txt ) SNPs with male/female differential missingness.\n"
     ## get the resulting number of samples and variants                             
     variants=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
@@ -395,7 +396,7 @@ else
     plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out_fem}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
     # document
-    printf "\nRemoved $(wc -l < ${plinkset_x_out_fem}_SNPs.txt) SNPs for HWE p<1e-6 in females.\n"
+    printf "\nRemoved $( wc -l < ${plinkset_x_out_fem}_SNPs.txt ) SNPs for HWE p<1e-6 in females.\n"
     ## get the resulting number of samples and variants                             
     variants=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
@@ -512,7 +513,7 @@ sed -i "s|rm TEMP|rm ${output_folder}/TEMP|" ${output_folder}/Run-plink.sh
 sh ${output_folder}/Run-plink.sh > /dev/null 2>&1
 
 ## calculate variants removed bc of mismatch with reference
-varsmismatchref=$(($( wc -l < ${output}.bim )-$( wc -l < ${output}-updated-chr23.bim )))
+varsmismatchref=$(( $( wc -l < ${output}.bim )-$( wc -l < ${output}-updated-chr23.bim ) ))
 
 printf "\nUpdate variant IDs to TOPMED imputation server format chrX:POS:REF:ALT \n"
 # the genotyped variant ids in TOPMED imputation server format chrX:POS:REF:ALT
