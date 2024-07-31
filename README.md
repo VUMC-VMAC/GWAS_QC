@@ -69,7 +69,17 @@ Files needed for the Pre-Imputation QC script:
 
 To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
-singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch --bind /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh /data/mahone1/GWAS_QC/gwas_qc_preimputation.sh -i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids -o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids -f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt -R /data/GWAS_QC/topmed/topmed_imputed_ref_snps -b b37 -m 15000 |& tee /scratch/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC.log"
+singularity exec --contain \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch \
+	--bind /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/ \
+	CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+		sh /data/mahone1/GWAS_QC/gwas_qc_preimputation.sh \
+			-i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids \ 
+			-o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids \
+			-f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt \
+			-R /data/GWAS_QC/topmed/topmed_imputed_ref_snps \
+			-b b37 \
+			-m 15000 |& tee /scratch/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC.log"
 ```
 Explanation of flags:
 - -i : input genotypes stem 
@@ -123,7 +133,19 @@ Files needed for part 1 of post-imputation QC:
 
 To run the first step in the SNPWeights post-imputation step, run something like:
 ```
-singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/mahone1/GWAS_QC/:/data/ --bind /data/h_vmac/GWAS_QC/:/ref/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_part1.sh -i /input/Imputed/Raw/VMAP2/ -o /input/Imputed/Cleaned/VMAP2/VMAP2_imputed -f /input/Genotyped/Raw/VMAP2_sex.txt -w /ref/1000G_data/1000G_snpwt -s /ref/topmed/topmed_snp_names -m 15000 -c |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_part1.log"
+singularity exec --contain \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
+	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
+	--bind /data/h_vmac/GWAS_QC/:/ref/ \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+		sh gwas_qc_postimputation_part1.sh \
+			-i /input/Imputed/Raw/VMAP2/ \
+			-o /input/Imputed/Cleaned/VMAP2/VMAP2_imputed \
+			-f /input/Genotyped/Raw/VMAP2_sex.txt \
+			-w /ref/1000G_data/1000G_snpwt \
+			-s /ref/topmed/topmed_snp_names \
+			-m 15000 \
+			-c |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_part1.log"
 ```
 Explanation of flags:
 - -i : input folder with raw imputation results
@@ -156,7 +178,17 @@ Files needed for part 1 of post-imputation QC:
 
 To run the second post-imputation step, run something like the following command:
 ```
-singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/mahone1/GWAS_QC/:/data/ --bind /data/h_vmac/GWAS_QC/:/ref/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_part2.sh -i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex -g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated -r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AA_keep.txt -l AA -m 15000 -c -p -s /ref/topmed/topmed_snp_names |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_AA_part2.log"
+singularity exec --contain \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
+	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
+	--bind /data/h_vmac/GWAS_QC/:/ref/ \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+		sh gwas_qc_postimputation_part2.sh \
+			-i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex \
+			-g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated \
+			-r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AA_keep.txt \
+			-l AA -m 15000 -c -p \
+			-s /ref/topmed/topmed_snp_names |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_AA_part2.log"
 ```
 Explanation of flags:
 - -i : file stem of the plink set output from part 1 post-imputation
@@ -182,11 +214,11 @@ To run the post-imputation QC without SNPWeights, run a command similar to the o
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
 	    sh gwas_qc_postimputation_old.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
-	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
-	    -f /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
-	    -g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
-	    -s /ref/topmed_snp_names"
+			-o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
+			-r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
+			-f /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
+			-g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
+			-s /ref/topmed_snp_names"
 ```
 
 Post-imputation QC main output files:
@@ -239,7 +271,18 @@ Files needed for the Pre-Imputation QC script:
 
 To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
-singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_preimputation_chrX.sh -o /input/Genotyped/Cleaned/Xchr/VMAP2_X -i /input/Genotyped/Raw/VMAP2_mapids -f /input/Genotyped/Raw/VMAP2_sex.txt -m 10000 -R /data/topmed/X.PASS.Variants.TOPMed_freeze5_hg38_dbSNP.tab.gz -b b37 |& tee /input/Genotyped/Cleaned/Xchr/VMAP2_Xchr_preimputation_qc.log"
+singularity exec --contain \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
+	--bind /data/h_vmac/GWAS_QC/:/data/ \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg \
+	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
+		sh gwas_qc_preimputation_chrX.sh \
+		-o /input/Genotyped/Cleaned/Xchr/VMAP2_X \
+		-i /input/Genotyped/Raw/VMAP2_mapids \
+		-f /input/Genotyped/Raw/VMAP2_sex.txt \
+		-m 10000 \
+		-R /data/topmed/X.PASS.Variants.TOPMed_freeze5_hg38_dbSNP.tab.gz \
+		-b b37 |& tee /input/Genotyped/Cleaned/Xchr/VMAP2_Xchr_preimputation_qc.log"
 ```
 Explanation of flags:
 - -i : input genotypes stem 
@@ -279,7 +322,22 @@ Files needed for part 1 of post-imputation QC:
 
 In order to run X chromosome post-imputation QC, run a command similar to the following:
 ```
-singularity exec --contain --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_chrX.sh -o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr -i /input/Imputed/Raw/VMAP2/Xchr/ -f /input/Genotyped/Raw/VMAP2_sex.txt -s /ref/topmed_snp_names -g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID -c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt -p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01 -l EUR -d -m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
+singularity exec --contain \
+	--bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
+	--bind /data/h_vmac/GWAS_QC/:/data/ \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
+		sh gwas_qc_postimputation_chrX.sh \
+		-o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr \
+		-i /input/Imputed/Raw/VMAP2/Xchr/ \
+		-f /input/Genotyped/Raw/VMAP2_sex.txt \
+		-s /ref/topmed_snp_names \
+		-g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID \
+		-c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt \
+		-p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01 \
+		-l EUR -d \
+		-m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
 ```
 Explanation of flags:
 - -i : input folder with raw imputation results
@@ -317,16 +375,17 @@ The basic process for merging multiple sets of GWAS data for a given cohort is t
 
 To recalculate PCs using smartpca from eigensoft, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
 ```
-singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
-  /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
-  -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
+singularity exec --contain \
+	--bind /path/to/genotype/data/:/inputs/ \
+  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+  	/bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
+  		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
 
 An additional method to calculate PCs is also available using SNPRelate in R. This method is significantly faster than the smartpca method. To calculate PCs using this method, run a command similar to this:
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
-  /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs_snprelate.sh \
-  -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
+  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+	/bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs_snprelate.sh \
+  		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
