@@ -1,6 +1,6 @@
 # GWAS QC and TOPMed Imputation Pipeline Documentation
 
-Insert helpful overview...
+This README describes the CNT methods for QC and imputation of genotype data. Specifically, it describes how to run the main autosomal pipeline, how to QC the X chromosome, how to perform multi-set merges, as well as how to run PC calculations on individual sets. 
 
 ## Autosomal Pipeline
 
@@ -37,7 +37,7 @@ Each step (except the TOPMed imputation) is run as a bash script in a singularit
 
 In general, it is best to run the QC scripts as slurm jobs. There is an example slurm script for running pre-imputation QC in this repository: run_gwas_qc_preimputation.slurm However, if it is desired to run the scripts locally, most scripts have the -m flag which can be used to limit the memory allotments of plink commands making it possible to run locally. 
 
-Current version of the singularity: 
+Current version of the singularity: CNT_genomic_processing_v3.10.simg
 
 Software used for QC:
 - plink, versions 1.9 and 2.0: https://www.cog-genomics.org/plink/
@@ -58,6 +58,8 @@ Supplementary files not included in this github:
 
 ### Pre-Imputation QC
 
+Pre-imputation QC can be run in one single step which runs all the filters and finishes by formatting the genotype data for upload to the TOPMed imputation server. 
+
 Files needed for the Pre-Imputation QC script:
 - Raw genotype files
 - Singularity container 
@@ -65,18 +67,19 @@ Files needed for the Pre-Imputation QC script:
   - Sex should be coded as 1=male, 2=female, 0=unknown.
 - Reference panel files
 
-To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. As in the example below, -i specifies the input genotypes stem, -o specifies the output stem, -f specifies the sex file, the -R specifies the reference file stem, and -b specifies the input build. Additionally, the -m flag can be supplied to limit memory used by plink. 
+To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
-singularity exec --containall --bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch \
-	    --bind  /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.5.simg /bin/bash -c "cd /data/mahone1/GWAS_QC/ ; \
-	    sh gwas_qc_preimputation.sh -i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids \
-	       				-o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids \
-					-f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt \
-					-G /data/GWAS_QC/1000G_data/1000G_final_b37 \
-					-R /data/GWAS_QC/topmed/topmed_imputed_ref_snps -b b37 \
-					|& tee /scratch/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC_preimputation.log"
+singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch --bind /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh /data/mahone1/GWAS_QC/gwas_qc_preimputation.sh -i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids -o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids -f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt -R /data/GWAS_QC/topmed/topmed_imputed_ref_snps -b b37 -m 15000 |& tee /scratch/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC.log"
 ```
-The -n flag would specify to not exclude variants based on the reference panel. The -c flag would specify to skip the clean-up step at the end of the script which will remove bed and vcf files prior to the final ones. 
+Explanation of flags:
+- -i : input genotypes stem 
+- -o : output stem
+- -f : file with sex information
+- -R : reference file stem
+- Optional flags:
+	- -b : input build (default = b37)
+	- -n : skip exclusion of variants not matching the reference panel
+	- -c : skip the clean-up step at the end 
 
 Pre-Imputation QC output files:
 - Main log file
@@ -108,6 +111,8 @@ If you get an error because there is incomplete overlap between the genotyped an
 
 #### Post-Imputation QC Part 1
 
+The first part of post-imputation QC performs initial quality filtering and assigns ancestry categories based on SNPWeights. 
+
 Files needed for part 1 of post-imputation QC:
 - Singularity container 
 - Imputation results and password to unzip them
@@ -116,34 +121,29 @@ Files needed for part 1 of post-imputation QC:
 - Files to convert variant ids back to rs number
 - File with pre-calculated SNP weights from which to infer ancestry (current version: /data/h_vmac/GWAS_QC/1000G_data/1000G_snpwt; note that there must be an additional file with the same stem ending in *_snp.txt that lists the variants in the weights file). 
 
-The first step will run all the initial post-imputation steps up to inferring ancestry including:
-- Unzipping results from the imputation server (if -z is supplied)
-- Filter for R2>0.8
-- Removing multi-allelic variants
-- Updating sample IDs and sex
-- Calculate SNPWeights and assign ancestral categories
-
 To run the first step in the SNPWeights post-imputation step, run something like:
 ```
-singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    --bind /data/h_vmac/GWAS_QC/1000G_data/:/data/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    sh gwas_qc_postimputation_part1.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
-	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race_sex.txt \
-	    -w /data/1000G_snpwt \
-	    -s /ref/topmed_snp_names"
+singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/mahone1/GWAS_QC/:/data/ --bind /data/h_vmac/GWAS_QC/:/ref/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_part1.sh -i /input/Imputed/Raw/VMAP2/ -o /input/Imputed/Cleaned/VMAP2/VMAP2_imputed -f /input/Genotyped/Raw/VMAP2_sex.txt -w /ref/1000G_data/1000G_snpwt -s /ref/topmed/topmed_snp_names -m 15000 -c |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_part1.log"
 ```
+Explanation of flags:
+- -i : input folder with raw imputation results
+- -o : output stem 
+- -f : file with sex information
+- -w : reference file with pre-calculated SNP weights
+- -s : reference file with rsIDs
+- Optional flags:
+	- -z : unzip the files from the imputation server
+	- -x : skip the first post-imputation filters (helpful if these have already been done)
+	- -m : value for plink --memory flag to limit resource usage
+	- -c : skip cleanup at the end
+
 
 The outputs from the first step will be a plink file set with imputed variants for all samples, a set of files ending in *keep.txt for each ancestry subset in which there are >10 samples, and a *.png plot of the ancestry weights. Before moving to the next step, look at the plot and scan the numbers from this step to ensure nothing went awry. If everything looks fine, proceed in running part 2 post-imputation on each of the subsets with sufficient samples (>10).
 
 
 #### Post-Imputation QC Part 2
 
-The second script will run the post-imputation steps and should be run in the dataset after separating the data into the genetically similar groups. Specifically, the following steps will be done:
-- Filter out variants with HWE p<0.000001 and MAF<0.01
-- Check heterozygosity and remove outliers if present
-- Calculate PCs
+The second postimputation script must be run in each ancestry subset separately. It will perform the rest of the post-imputation filtering steps, other than PC outlier removal which must be done manually. 
 
 Files needed for part 1 of post-imputation QC:
 - Singularity container 
@@ -154,17 +154,28 @@ Files needed for part 1 of post-imputation QC:
   - Note that this *must* include every sample that is in the imputation files to be able to update FID/IID and sex correctly as well as to merge in the genotype data correctly.
 - Files to convert variant ids back to rs number (for genotype files)
 
-To run the second post-imputation step, run something like:
+To run the second post-imputation step, run something like the following command:
 ```
-singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    sh gwas_qc_postimputation_part2.sh \
-	    -o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-	    -r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt"
+singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/mahone1/GWAS_QC/:/data/ --bind /data/h_vmac/GWAS_QC/:/ref/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_part2.sh -i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex -g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated -r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AA_keep.txt -l AA -m 15000 -c -p -s /ref/topmed/topmed_snp_names |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_AA_part2.log"
 ```
+Explanation of flags:
+- -i : file stem of the plink set output from part 1 post-imputation
+- -g : file stem for preimputation genotype files to merge back in
+- -r : name of the file to subset to this ancestry group (the *keep.txt file from part 1 post-imputation)
+- -l : label for this ancestry group (EUR, AA, LatHisp, CaribHisp, NatAmer)
+- -s : reference file with rsIDs
+- Optional flags:
+	- -p : skip PC calculation (only for sets that will be merged)
+	- -m : value for plink --memory flag to limit resource usage
+	- -c : skip cleanup at the end
 
+After this script is complete, check the PC plots from the final step to check for outliers and make decisions on samples which need to be removed. If there are samples to be removed, drop those samples from the genotype files and recalculate PCs. (See the section "Additional notes on PC calculation" below for instruction on doing so in the singularity.) If these resulting PCs look acceptable, then the QC of this set is complete. If additional outliers must be removed, do so and recalculate. 
+
+If the set you are QC'ing is one of several for a given cohort, PC calculation can be skipped at the end of this step (with the -p) flag. In that case, PCs should be calculated in the whole merged set. (See "Multi-set Merges" below for instruction on how to merge multiple genotype sets together.)
 
 #### Appendix: Non-SNPWeights Post-Imputation QC
+
+Note: This section is retained for backward compatibility, but should not be run. 
 
 To run the post-imputation QC without SNPWeights, run a command similar to the one below.
 ```
@@ -226,11 +237,19 @@ Files needed for the Pre-Imputation QC script:
   - Sex should be coded as 1=male, 2=female, 0=unknown.
 - Reference panel files
 
-To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. As in the example below, -i specifies the input genotypes stem, -o specifies the output stem, -f specifies the sex file, the -R specifies the reference file stem, and -b specifies the input build. Additionally, the -m flag can be supplied to limit memory used by plink. 
+To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
-singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /temp_scripts/ ; sh gwas_qc_preimputation_chrX.sh -o /input/Genotyped/Cleaned/Xchr/VMAP2_X -i /input/Genotyped/Raw/VMAP2_mapids -f /input/Genotyped/Raw/VMAP2_sex.txt -m 10000 -R /data/topmed/X.PASS.Variants.TOPMed_freeze5_hg38_dbSNP.tab.gz -b b37 |& tee /input/Genotyped/Cleaned/Xchr/VMAP2_Xchr_preimputation_qc.log"
+singularity exec --contain --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_preimputation_chrX.sh -o /input/Genotyped/Cleaned/Xchr/VMAP2_X -i /input/Genotyped/Raw/VMAP2_mapids -f /input/Genotyped/Raw/VMAP2_sex.txt -m 10000 -R /data/topmed/X.PASS.Variants.TOPMed_freeze5_hg38_dbSNP.tab.gz -b b37 |& tee /input/Genotyped/Cleaned/Xchr/VMAP2_Xchr_preimputation_qc.log"
 ```
-The -n flag would specify to not exclude variants based on the reference panel. The -c flag would specify to skip the clean-up step at the end of the script which will remove bed and vcf files prior to the final ones. 
+Explanation of flags:
+- -i : input genotypes stem 
+- -o : output stem
+- -f : file with sex information
+- -R : reference file name
+- Optional flags:
+	- -b : input build (default = b37)
+	- -n : skip exclusion of variants not matching the reference panel
+	- -c : skip the clean-up step at the end 
 
 Pre-Imputation QC output files:
 - Main log file
@@ -240,9 +259,13 @@ After this script completes, before uploading to the imputation server, check th
 
 Note that if there were samples removed for heterozygosity in the autosomal pipeline they must be removed before uploading to the imputation server. However, this is not likely to occur. 
 
+### TOPMed Imputation (X Chromosome)
+
+Upload in the same manner as autosomal variant files. 
+
 ### Post-imptuation QC (X Chromosome)
 
-Unlike autosomal QC, post-imputation QC for the X chromosome is run in one step, using outputs from the autosomal QC. 
+Unlike autosomal QC, post-imputation QC for the X chromosome is run in one step, using outputs from the autosomal QC. Thus, it must be run after the autosomal QC is complete. Also unlike autosomal post-imputation QC, this script can process all the ancestry subgroups in one run. 
 
 Files needed for part 1 of post-imputation QC:
 - Singularity container 
@@ -256,21 +279,38 @@ Files needed for part 1 of post-imputation QC:
 
 In order to run X chromosome post-imputation QC, run a command similar to the following:
 ```
-singularity exec --contain --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /temp_scripts/ ; sh gwas_qc_postimputation_chrX.sh -o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr -i /input/Imputed/Raw/VMAP2/Xchr/ -f /input/Genotyped/Raw/VMAP2_sex.txt -s /ref/topmed_snp_names -g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID -c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt -p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01 -l EUR -d -m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
+singularity exec --contain --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ --bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ --bind /data/h_vmac/GWAS_QC/:/data/ --bind /data/h_vmac/mahone1/GWAS_QC/:/temp_scripts/ /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; sh gwas_qc_postimputation_chrX.sh -o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr -i /input/Imputed/Raw/VMAP2/Xchr/ -f /input/Genotyped/Raw/VMAP2_sex.txt -s /ref/topmed_snp_names -g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID -c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt -p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01 -l EUR -d -m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
 ```
+Explanation of flags:
+- -i : input folder with raw imputation results
+- -o : output stem 
+- -f : file with sex information
+- -g : file stem for preimputation genotype files to merge back in
+- -s : reference file with rsIDs
+- Subset specific arguments (comma-separated and in order if there are multiple)
+	- -c : names of subset files for each ancestry group (the *keep.txt files from part 1 post-imputation)
+	- -p : names of the final autosomal files for each ancestry group
+	- -l : labels for ancestry groups (EUR, AA, LatHisp, CaribHisp, NatAmer)
+- Optional flags:
+	- -z : unzip the files from the imputation server
+	- -x : skip the first post-imputation filters (helpful if these have already been done)
+	- -m : value for plink --memory flag to limit resource usage
+	- -c : skip cleanup at the end
 
 Once this runs, check the outputs of this script, confirming that the variants and samples removed at each step are reasonable. If so, X chromosome GWAS QC for this set is complete. 
 
 ## Multi-set Merges
 
-INSERT HELPFUL COMMENTS HERE. 
+Some cohorts have genotype data from multiple genotyping runs. This is often the case if the genotype data were collected at multiple sites (as in NACC) or at different times (as in VMAP). In these cases, the genotype data must be processed by batch all the way through post-imputation QC and then merged at the end of the QC pipeline. The only step that can be skipped for these sets is PC outlier removal at the end of post-imputation QC. This should be performed in the merged genotype data for the whole cohort. 
+
+Below are the steps to perform a multi-set merge. These remain the same no matter how many sets are being merged. These are also advisable if genotype data is being merged between cohorts for analysis. 
 
 The basic process for merging multiple sets of GWAS data for a given cohort is the following:
-- Check for sample overlap between sets 
-- Check A1/MAF between sets and remove variants with differences > 10%
-- Merge the sets
-- Check relatedness in the merged set and remove individuals with relatedness >0.25
-- Calculate PCs and remove outliers
+1. Check for sample overlap between sets 
+2. Check A1/MAF between sets and remove variants with differences > 10%
+3. Merge the sets
+4. Check relatedness in the merged set and remove individuals with relatedness >0.25
+5. Calculate PCs and remove outliers
 	- It is sometimes helpful to color PC plots on set to ensure that the sets are not clustering together. 
 
 ## Additional notes on PC calculation
@@ -278,7 +318,7 @@ The basic process for merging multiple sets of GWAS data for a given cohort is t
 To recalculate PCs using smartpca from eigensoft, run a command similar to the one below. Adding the -n flag will suppress the creation of a file for default inclusions (ie only whites who fall within 5 SD from the mean).
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
   /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
@@ -286,7 +326,7 @@ singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
 An additional method to calculate PCs is also available using SNPRelate in R. This method is significantly faster than the smartpca method. To calculate PCs using this method, run a command similar to this:
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg \
+  /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
   /bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs_snprelate.sh \
   -i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```

@@ -12,7 +12,7 @@ display_usage() {
 This script will unzip the imputation results for single chromosome specified (assuming password is saved in pass.txt in the same folder as the imputation results files and will perform standard post-imputation QC for our common variant pipeline. This includes filtering for R2, removing multi-allelic variants and filtering out variants for low MAF or HWE disequilibrium. Finally, PCs will be calculated on the final file-set.
 
 Usage:
-gwas_qc_postimputation_chrX.sh -o [output_stem] -i [imputation_results_folder] -r [race_file] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -c [subset] -l [lab] -p [autosomal_stem] -z -x -d -m [plink_memory_limit]
+gwas_qc_postimputation_chrX.sh -o [output_stem] -i [imputation_results_folder] -f [sex_file] -s [snp_names_file] -g [preimputation_geno_X] -c [subset] -l [lab] -p [autosomal_stem] -z -x -d -m [plink_memory_limit]
 
 output_stem = the beginning part of all QC'ed files including the full path to the folder in which they should be created
 

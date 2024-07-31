@@ -10,7 +10,7 @@ display_usage() {
 This script will conclude the post-imputation process, performing the MAF and HWE filters, checking sample heterozygosity, and calculating PCs on the final, cleaned files. Please check the PC plots for outliers.
 
 Usage:
-SCRIPTNAME.sh -o [input_file_stem] -g [preimputation_geno] -r [sample_ids] -l [subset_label] -c -p -m [plink_memory_flag] -s [snp_names_file]
+SCRIPTNAME.sh -i [input_file_stem] -g [preimputation_geno] -r [sample_ids] -l [subset_label] -c -p -m [plink_memory_flag] -s [snp_names_file]
 
 input_file_stem = the full path and name (without bed/bim/fam) of the plink file set which resulted from the first stage of post-imputation QC. The files generated in this script will be saved in the same folder. 
 
@@ -37,9 +37,9 @@ do_unzip='false'
 skip_first_filters='false'
 skip_cleanup='false'
 skip_pccalc='false'
-while getopts 'o:g:r:l:s:cpm:h' flag; do
+while getopts 'i:g:r:l:s:cpm:h' flag; do
   case "${flag}" in
-    o) output_stem="${OPTARG}" ;;
+    i) output_stem="${OPTARG}" ;;
     g) preimputation_geno="${OPTARG}" ;;
     r) sample_ids="${OPTARG}" ;;
     l) subset_label="${OPTARG}" ;;
