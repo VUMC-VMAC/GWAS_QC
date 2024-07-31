@@ -106,7 +106,7 @@ Files needed for the Post-imputation QC:
 
 If you get an error because there is incomplete overlap between the genotyped and imputed files, it is likely there was some issue with converting the imputed ids back to FID and IID. To resolve this issue, ensure that the supplied sex file has every sample in the imputed files.
 
-### Post-Imputation QC Part 1
+#### Post-Imputation QC Part 1
 
 Files needed for part 1 of post-imputation QC:
 - Singularity container 
@@ -138,7 +138,7 @@ singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/
 The outputs from the first step will be a plink file set with imputed variants for all samples, a set of files ending in *keep.txt for each ancestry subset in which there are >10 samples, and a *.png plot of the ancestry weights. Before moving to the next step, look at the plot and scan the numbers from this step to ensure nothing went awry. If everything looks fine, proceed in running part 2 post-imputation on each of the subsets with sufficient samples (>10).
 
 
-### Post-Imputation QC Part 2
+#### Post-Imputation QC Part 2
 
 The second script will run the post-imputation steps and should be run in the dataset after separating the data into the genetically similar groups. Specifically, the following steps will be done:
 - Filter out variants with HWE p<0.000001 and MAF<0.01
@@ -164,7 +164,7 @@ singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/
 ```
 
 
-### Appendix: Non-SNPWeights Post-Imputation QC
+#### Appendix: Non-SNPWeights Post-Imputation QC
 
 To run the post-imputation QC without SNPWeights, run a command similar to the one below.
 ```
@@ -188,6 +188,34 @@ After the post-imputation QC runs, check the principal components for outliers, 
 ## X Chromosome GWAS QC
 
 The X chromosome pipeline is similar to the autosomal pipeline with a few key differences. A few of the variant filters occur in a sex-specific manner. Additionally, some of the sample filters (like heterozygosity, ancestry subsetting, and PC outlier removal) occur based on autosomal thresholds. Thus, X chromosome QC must be run separately from autosomal QC. Below are instructions for running the X chromosome QC pipeline. 
+
+Here are the general steps in this pipeline:
+1. Pre-Imputation QC
+	- Variant filtering excluding for missingness (>5%) and minor allele frequency (<0.01)
+	- Sample missingness filtering (1%)
+	- Relatedness check (removes 1 of each pair of second degree relatives, 0.9> pi-hat >0.25, and both of each pair with a pi-hat >=0.9)
+	- Sex check (removes individuals with discrepancies)
+	- Subset to X chr variants
+	- Remove variants with high differential missingness between males and females (p<1e-7)
+	- Hardy-Weinberg filter (p<1e-6 based on females)
+	- Removing palindromic variants
+	- Lifts to build 38 if necessary
+	- Removing one of each duplicate variant and multi-allelic variants
+	- Compare the files with the reference panel
+	- Prepares files for uploading to the imputation server
+2. TOPMed Imputation
+3. Post-Imputation QC
+	- Unzip if needed
+	- Variant filtering excluding for:
+		- imputation quality (<0.8)
+		- multi-allelic variants
+	- Update sample IDs and sex
+	- Filters by ancestry group
+		- Subset to the supplied subset and filter variants for missingness (5%) in genotype and imputed variants
+		- Merging in genotyped variants with the imputed data
+		- Hardy-Weinberg equilibrium (p<1e-6 based on females) and minor allele frequency (1%)
+		- Set heterozygous haploid variants missing
+		- Remove variants based on the final autosomal plink file
 
 ### Pre-imputation QC (X Chromosome)
 
@@ -225,19 +253,6 @@ Files needed for part 1 of post-imputation QC:
 - Subset-specific files (note that these are supplied as comma-separated to the appropriate flag):
 	- Lists of samples for the initial sample subsetting
 	- File stem to the final autosomal plink file set (with PC outliers removed)
-
-
-The first step will run all the initial post-imputation steps up to inferring ancestry including:
-- Unzipping results from the imputation server (if -z is supplied)
-- Filter for R2>0.8
-- Removing multi-allelic variants
-- Updating sample IDs and sex
-- In each subset
-	- Filter down to the samples in the current subset, filtering variants by missingness
-	- Merge genotyped and imputed variants
-	- Remove variants for HWE p<1e-6 (in females) and MAF<1%
-	- Set heterozygous haploid variants missing
-	- Remove samples based on the final autosomal set
 
 In order to run X chromosome post-imputation QC, run a command similar to the following:
 ```
