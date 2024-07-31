@@ -396,7 +396,8 @@ else
     plink --bfile ${plinkset_x_in} --extract ${plinkset_x_out_fem}_SNPs.txt --make-bed --out ${plinkset_x_out} $plink_memory_limit > /dev/null
 
     # document
-    printf "\nRemoved $( wc -l < ${plinkset_x_out_fem}_SNPs.txt ) SNPs for HWE p<1e-6 in females.\n"
+    hwe=$(( $( wc -l < ${plinkset_x_in}.bim ) - $( wc -l < ${plinkset_x_out}.bim ) ))
+    printf "\nRemoved $hwe SNPs for HWE p<1e-6 in females.\n"
     ## get the resulting number of samples and variants                             
     variants=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${plinkset_x_out}.log | awk '{print $4;}' )
@@ -565,4 +566,4 @@ $variants variants\n"
 #    printf "Skipping cleanup. Please manually remove unnecessary files.\n"
 #fi
 
-printf "\nConversion complete! Upload the file (${output_stem}_chrX.vcf.gz) to the imputation server.\n"
+printf "\nConversion complete! Upload the file (${output}_chrX.vcf.gz) to the imputation server.\n"
