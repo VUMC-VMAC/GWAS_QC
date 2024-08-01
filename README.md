@@ -58,7 +58,7 @@ Supplementary files not included in this github:
 
 ### Pre-Imputation QC
 
-Pre-imputation QC can be run in one single step which runs all the filters and finishes by formatting the genotype data for upload to the TOPMed imputation server. 
+Pre-imputation QC can be run in a single script which runs all the filters and finishes by formatting the genotype data for upload to the TOPMed imputation server. 
 
 Files needed for the Pre-Imputation QC script:
 - Raw genotype files
@@ -67,7 +67,7 @@ Files needed for the Pre-Imputation QC script:
   - Sex should be coded as 1=male, 2=female, 0=unknown.
 - Reference panel files
 
-To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
+To run the preimputation script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch \
@@ -88,6 +88,7 @@ Explanation of flags:
 - -R : reference file stem
 - Optional flags:
 	- -b : input build (default = b37)
+	- -m : value for plink --memory flag to limit resource usage
 	- -n : skip exclusion of variants not matching the reference panel
 	- -c : skip the clean-up step at the end 
 
@@ -106,12 +107,12 @@ Once imputation is complete, download the results and save the decryption passwo
 
 ### Post-Imputation QC
 
-Running post-imputation QC will take place in two steps. The first step involves doign initial filtering of the imputed variants and then estimating genetic ancestry using SNPWeights. SNPWeights allows for inferring ancestry and subsetting people into groups with greater genetic similarity rather than simply self-report. The second step involves subsetting samples into the ancestry groups defined by SNPWeights, merging imputed and genotyped variants together, and then performing final variant (MAF and HWE) and sample (heterozygosity and PCs) filtering. 
+Running post-imputation QC will take place in two parts. The first part involves doing initial filtering of the imputed variants and then estimating genetic ancestry using SNPWeights. SNPWeights allows for inferring ancestry and subsetting people into groups with greater genetic similarity rather than simply subsetting by self-report race. The second step involves subsetting samples into the ancestry groups defined by SNPWeights, merging imputed and genotyped variants together, and then performing final variant (MAF and HWE) and sample (heterozygosity and PCs) filtering. 
 
 Files needed for the Post-imputation QC:
 - Singularity container 
 - Imputation results and password to unzip them
-- File with sex for the dataset (used in the pre-imputation part 1 step)
+- File with sex for the dataset (used in the pre-imputation script)
   - Note that this *must* include every sample that is in the imputation files to be able to update FID/IID and sex correctly as well as to merge in the genotype data correctly.
 - Files to convert variant ids back to rs number
 - Cleaned genotype files to merge back in
@@ -160,19 +161,18 @@ Explanation of flags:
 	- -c : skip cleanup at the end
 
 
-The outputs from the first step will be a plink file set with imputed variants for all samples, a set of files ending in *keep.txt for each ancestry subset in which there are >10 samples, and a *.png plot of the ancestry weights. Before moving to the next step, look at the plot and scan the numbers from this step to ensure nothing went awry. If everything looks fine, proceed in running part 2 post-imputation on each of the subsets with sufficient samples (>10).
-
+The outputs from the first step will be a plink file set with imputed variants for all samples (*_IDs_sex.{bed,bim,fam}), a set of files for each ancestry subset in which there are >10 samples (*keep.txt), and a *.png plot of the ancestry weights. Before moving to the next step, look at the plot and scan the numbers from this step to ensure nothing went awry. If everything looks fine, proceed in running part 2 post-imputation on each of the subsets with sufficient samples (>10).
 
 #### Post-Imputation QC Part 2
 
 The second postimputation script must be run in each ancestry subset separately. It will perform the rest of the post-imputation filtering steps, other than PC outlier removal which must be done manually. 
 
-Files needed for part 1 of post-imputation QC:
+Files needed for part 2 of post-imputation QC:
 - Singularity container 
-- Plink fileset from the end of part 1
-- List of samples to keep for this subset (from part 1)
+- Plink fileset from part 1 (*_IDs_sex.{bed,bim,fam})
+- List of samples to keep for this subset from part 1 (*keep.txt)
 - Final pre-imputation genotyped plink fileset
-- File with sex for the dataset (used in the pre-imputation part 1 step)
+- File with sex for the dataset (used in pre-imputation)
   - Note that this *must* include every sample that is in the imputation files to be able to update FID/IID and sex correctly as well as to merge in the genotype data correctly.
 - Files to convert variant ids back to rs number (for genotype files)
 
@@ -182,7 +182,7 @@ singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
 	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		sh gwas_qc_postimputation_part2.sh \
 			-i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex \
 			-g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated \
@@ -212,7 +212,7 @@ Note: This section is retained for backward compatibility, but should not be run
 To run the post-imputation QC without SNPWeights, run a command similar to the one below.
 ```
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.6.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
 	    sh gwas_qc_postimputation_old.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
 			-o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
 			-r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
@@ -258,7 +258,7 @@ Here are the general steps in this pipeline:
 		- Merging in genotyped variants with the imputed data
 		- Hardy-Weinberg equilibrium (p<1e-6 based on females) and minor allele frequency (1%)
 		- Set heterozygous haploid variants missing
-		- Remove variants based on the final autosomal plink file
+		- Remove PC outliers based on the final autosomal plink file
 
 ### Pre-imputation QC (X Chromosome)
 
@@ -269,12 +269,12 @@ Files needed for the Pre-Imputation QC script:
   - Sex should be coded as 1=male, 2=female, 0=unknown.
 - Reference panel files
 
-To run the part 1 script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
+To run the pre-imputation script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
 	--bind /data/h_vmac/GWAS_QC/:/data/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.9.simg \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		sh gwas_qc_preimputation_chrX.sh \
 		-o /input/Genotyped/Cleaned/Xchr/VMAP2_X \
@@ -291,6 +291,7 @@ Explanation of flags:
 - -R : reference file name
 - Optional flags:
 	- -b : input build (default = b37)
+	- -m : value for plink --memory flag to limit resource usage
 	- -n : skip exclusion of variants not matching the reference panel
 	- -c : skip the clean-up step at the end 
 
@@ -308,9 +309,9 @@ Upload in the same manner as autosomal variant files.
 
 ### Post-imptuation QC (X Chromosome)
 
-Unlike autosomal QC, post-imputation QC for the X chromosome is run in one step, using outputs from the autosomal QC. Thus, it must be run after the autosomal QC is complete. Also unlike autosomal post-imputation QC, this script can process all the ancestry subgroups in one run. 
+Unlike autosomal QC, post-imputation QC for the X chromosome is run in one script, using outputs from the autosomal QC. Thus, it must be run after the autosomal QC is complete. Also unlike autosomal post-imputation QC, this script can process all the ancestry subgroups in one run. 
 
-Files needed for part 1 of post-imputation QC:
+Files needed for post-imputation QC:
 - Singularity container 
 - Imputation results and password to unzip them
 - File with sex for the dataset (used in the pre-imputation part 1 step)
@@ -346,7 +347,7 @@ Explanation of flags:
 - -g : file stem for preimputation genotype files to merge back in
 - -s : reference file with rsIDs
 - Subset specific arguments (comma-separated and in order if there are multiple)
-	- -c : names of subset files for each ancestry group (the *keep.txt files from part 1 post-imputation)
+	- -c : names of subset files for each ancestry group (the *keep.txt files from part 1 of autosomal post-imputation QC)
 	- -p : names of the final autosomal files for each ancestry group
 	- -l : labels for ancestry groups (EUR, AA, LatHisp, CaribHisp, NatAmer)
 - Optional flags:
