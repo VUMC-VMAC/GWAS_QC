@@ -317,8 +317,9 @@ Files needed for post-imputation QC:
 - File with sex for the dataset (used in the pre-imputation part 1 step)
   - Note that this *must* include every sample that is in the imputation files to be able to update FID/IID and sex correctly as well as to merge in the genotype data correctly.
 - Files to convert variant ids back to rs number
-- Subset-specific files (note that these are supplied as comma-separated to the appropriate flag):
+- Subset-specific files (comma-separated, in the same order, with no spaces):
 	- Lists of samples for the initial sample subsetting
+	- Labels for each subset
 	- File stem to the final autosomal plink file set (with PC outliers removed)
 
 In order to run X chromosome post-imputation QC, run a command similar to the following:
@@ -335,9 +336,9 @@ singularity exec --contain \
 		-f /input/Genotyped/Raw/VMAP2_sex.txt \
 		-s /ref/topmed_snp_names \
 		-g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID \
-		-c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt \
-		-p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01 \
-		-l EUR -d \
+		-c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_AA_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_LatHisp_keep.txt \
+		-p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_AA_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_LatHisp_hwe6_maf01_geno01 \
+		-l EUR,AA,LatHisp -d \
 		-m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
 ```
 Explanation of flags:
