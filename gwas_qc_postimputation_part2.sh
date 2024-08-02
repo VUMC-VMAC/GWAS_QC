@@ -65,7 +65,7 @@ printf "GWAS QC Post-imputation Script, part 2\n"
 #check to make sure necessary arguments are present
 if [ -z "$output_stem" ] || [ -z "$preimputation_geno" ] || [ -z "$sample_ids" ] || [ -z "$subset_label" ] || [ -z "$snp_names_file" ];
 then
-    printf "Error: Necessary arguments not present! Please supply input stem, pre-imputation genotype stem, and list of samples to be QC'ed in.\n\n"
+    printf "Error: Necessary arguments not present! Please supply input stem, pre-imputation genotype stem, list of samples to be QC'ed, subset labels, and SNP names file.\n\n"
     display_usage
     exit 1
 fi

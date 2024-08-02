@@ -73,7 +73,7 @@ singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch \
 	--bind /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/ \
 	CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
-		sh /data/mahone1/GWAS_QC/gwas_qc_preimputation.sh \
+		./gwas_qc_preimputation.sh \
 			-i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids \ 
 			-o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids \
 			-f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt \
@@ -139,7 +139,7 @@ singularity exec --contain \
 	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
-		sh gwas_qc_postimputation_part1.sh \
+		./gwas_qc_postimputation_part1.sh \
 			-i /input/Imputed/Raw/VMAP2/ \
 			-o /input/Imputed/Cleaned/VMAP2/VMAP2_imputed \
 			-f /input/Genotyped/Raw/VMAP2_sex.txt \
@@ -183,7 +183,7 @@ singularity exec --contain \
 	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
-		sh gwas_qc_postimputation_part2.sh \
+		./gwas_qc_postimputation_part2.sh \
 			-i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex \
 			-g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated \
 			-r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AA_keep.txt \
@@ -213,7 +213,7 @@ To run the post-imputation QC without SNPWeights, run a command similar to the o
 ```
 singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    sh gwas_qc_postimputation_old.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
+	    ./gwas_qc_postimputation_old.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
 			-o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
 			-r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
 			-f /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
@@ -276,7 +276,7 @@ singularity exec --contain \
 	--bind /data/h_vmac/GWAS_QC/:/data/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
-		sh gwas_qc_preimputation_chrX.sh \
+		./gwas_qc_preimputation_chrX.sh \
 		-o /input/Genotyped/Cleaned/Xchr/VMAP2_X \
 		-i /input/Genotyped/Raw/VMAP2_mapids \
 		-f /input/Genotyped/Raw/VMAP2_sex.txt \
@@ -330,7 +330,7 @@ singularity exec --contain \
 	--bind /data/h_vmac/GWAS_QC/:/data/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
-		sh gwas_qc_postimputation_chrX.sh \
+		./gwas_qc_postimputation_chrX.sh \
 		-o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr \
 		-i /input/Imputed/Raw/VMAP2/Xchr/ \
 		-f /input/Genotyped/Raw/VMAP2_sex.txt \
@@ -380,7 +380,7 @@ To recalculate PCs using smartpca from eigensoft, run a command similar to the o
 singularity exec --contain \
 	--bind /path/to/genotype/data/:/inputs/ \
   	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
-  	/bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs.sh \
+  	/bin/bash -c  "cd /scripts/GWAS_QC/ ; ./calc_plot_PCs.sh \
   		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
 
@@ -388,6 +388,6 @@ An additional method to calculate PCs is also available using SNPRelate in R. Th
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
   	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
-	/bin/bash -c  "cd /scripts/GWAS_QC/ ; sh calc_plot_PCs_snprelate.sh \
+	/bin/bash -c  "cd /scripts/GWAS_QC/ ; ./calc_plot_PCs_snprelate.sh \
   		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
