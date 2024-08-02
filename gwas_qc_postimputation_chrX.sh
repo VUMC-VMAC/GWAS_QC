@@ -33,7 +33,7 @@ autosomal_stem = the full path and stem to the fam file of the final autosomal p
 plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
 -z indicates that the imputation results will need to be unzipped. All *.zip files in imputation_results_folder will be unzipped with password provided in pass.txt
--x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest.
+-x indicates to skip the first filtering of the individual chr files. This comes in handy if there were an issue with the next step(s) because this first step is the longest. If you supply this flag, please give the full stem of the file that this run should start with to the output_stem command.
 -d will skip the clean-up at the end of the script which removes intermediate *.bed files.
 -h will display this message
 \n\n"
@@ -223,8 +223,8 @@ then
     variants=$( grep 'variants' ${output}.log | awk '{ print $1 }' )
     printf "$samples samples and $variants variants\n\n"
 else
-    output=${output_stem}_chrX_temp_nodups_names
-    printf "\nSkipping steps 1 and 2 (the unzipping, conversion, and filtering of the individual chromosome) because the -x flag was supplied. Picking up at updating sample IDs and sex. Assuming the X chr file stem is $output\n"
+    output=${output_stem}
+    printf "\nSkipping steps 1 and 2 (the unzipping, conversion, and filtering of the individual chromosome) because the -x flag was supplied. Picking up at updating sample IDs and sex. Assuming the X chr file to start with is $output\n"
 fi
 
 ############################ Step 3: Update SNP names and add sex to fam ######################
@@ -409,26 +409,37 @@ do
     printf "\nSetting het. haploid genotypes missing...\n"
     plink --bfile ${output_last} --set-hh-missing $plink_memory_limit --make-bed --out ${output} > /dev/null
 
+    
     ##### Step 7: Remove individuals based on final autosomal files #####
-    printf "\nStep 7 (${current_lab}): Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
+    ## first check whether anyone will be removed
+    if [[ $( wc -l < ${output}.fam ) -eq $( wc -l < ${current_autosomal_stem}.fam ) ]]; 
+    then
+	printf "\nSkipping Step 7 (${current_lab}) because no samples appear to have been dropped in the final autosomal file for this set.\n"
+	#log the final numbers and file name
+	final_samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+	variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+	printf "$samples samples\n$variants variants\n"
+	printf "\nFinal X-chromosome plinkset for ${current_lab[index]}: ${output}\n"
 
-    output_last=${output}
-    output=${output}_noout
-    plink --bfile ${output_last} --keep ${current_autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
-    final_samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
-    variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
-    # calculate number dropped based on final autosomal files
-    dropped_samples=$(( $samples - $final_samples ))
-    printf "Removed $dropped_samples samples based on autosomal heterozygosity and PC values.\n"
-    printf "$samples samples\n$variants variants\n"
 
-    ##make final file
-    #output_last=$output
-    #output=${output_stem}
-    #plink --bfile ${output_last} $plink_memory_limit --make-bed --out ${output_stem} > /dev/null
-    #printf "\n Final X-chromosome plinkset: ${output_stem} \n X chromosome postimputation QC complete! \n"
-    printf "\nFinal X-chromosome plinkset for ${current_lab[index]}: ${output}\n"
+    else
+	## if there are a different number of samples, run the exclusion
+	printf "\nStep 7 (${current_lab}): Remove individuals based on autosomal PCs outlier, restricting to final plinkset provided  \n"
+
+	output_last=${output}
+	output=${output}_noout
+	plink --bfile ${output_last} --keep ${current_autosomal_stem}.fam --make-bed --out ${output} $plink_memory_limit > /dev/null
+	final_samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
+	variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+
+	# calculate number dropped based on final autosomal files
+	dropped_samples=$(( $samples - $final_samples ))
+	printf "Removed $dropped_samples samples based on autosomal heterozygosity and PC values.\n"
+
+	printf "$final_samples samples\n$variants variants\n"
+	printf "\nFinal X-chromosome plinkset for ${current_lab[index]}: ${output}\n"
+    fi
 
 done
 
-printf "X chromosome post-imputation QC complete!\n"
+printf "\nX chromosome post-imputation QC complete!\n"
