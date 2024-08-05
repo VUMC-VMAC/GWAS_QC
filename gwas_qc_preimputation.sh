@@ -151,7 +151,7 @@ plink --bfile $output_last --mind 0.01 --make-bed --out $output $plink_memory_li
 # document
 ## get the number of samples removed for missingness
 samplesgeno=$( grep "removed due to missing genotype data" ${output}.log | awk '{print $1;}' )
-printf '%s\n' "Removed $samplesgeno people for >1% missingness.\n"
+printf '%s\n' "Removed $samplesgeno people for >1% missingness."
 ## get the resulting number of samples and variants
 variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
 samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
