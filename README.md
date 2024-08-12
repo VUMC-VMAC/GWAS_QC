@@ -70,16 +70,16 @@ Files needed for the Pre-Imputation QC script:
 To run the preimputation script, run a singularity command similar to the one below, binding the paths to the necessary input files. 
 ```
 singularity exec --contain \
-	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/scratch \
-	--bind /data/h_vmac/:/data/ /data/h_vmac/GWAS_QC/singularity/ \
+	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/input \
+	--bind /data/h_vmac/:/ref/ /data/h_vmac/GWAS_QC/singularity/ \
 	CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_preimputation.sh \
-			-i /scratch/VMAP/Genotyped/Raw/VMAP2_mapids \ 
-			-o /scratch/VMAP/Genotyped/Cleaned/VMAP2_mapids \
-			-f /scratch/VMAP/Genotyped/Raw/VMAP2_sex.txt \
-			-R /data/GWAS_QC/topmed/topmed_imputed_ref_snps \
+			-i /input/VMAP/Genotyped/Raw/VMAP2_mapids \ 
+			-o /input/VMAP/Genotyped/Cleaned/VMAP2_mapids \
+			-f /input/VMAP/Genotyped/Raw/VMAP2_sex.txt \
+			-R /ref/GWAS_QC/topmed/topmed_imputed_ref_snps \
 			-b b37 \
-			-m 15000 |& tee /scratch/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC.log"
+			-m 15000 |& tee /input/VMAP/Genotyped/Cleaned/VMAP2_genotyping_QC.log"
 ```
 Explanation of flags:
 - -i : input genotypes stem 
@@ -136,7 +136,6 @@ To run the first step in the SNPWeights post-imputation step, run something like
 ```
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
-	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_part1.sh \
@@ -180,7 +179,6 @@ To run the second post-imputation step, run something like the following command
 ```
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
-	--bind /data/h_vmac/mahone1/GWAS_QC/:/data/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_part2.sh \
@@ -211,13 +209,15 @@ Note: This section is retained for backward compatibility, but should not be run
 
 To run the post-imputation QC without SNPWeights, run a command similar to the one below.
 ```
-singularity exec --contain --bind /scratch:/scratch --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
+singularity exec --contain \
+	    --bind /nobackup/h_vmac/mahone1/:/input \
+	    --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
-	    ./gwas_qc_postimputation_old.sh -i /scratch/mahone1/GWAS_QC_data/A4/Imputed/Raw/ \
-			-o /scratch/mahone1/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
-			-r /scratch/mahone1/GWAS_QC_data/A4/A4_race.txt \
-			-f /scratch/mahone1/GWAS_QC_data/A4/A4_sex.txt \
-			-g /scratch/mahone1/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
+	    ./gwas_qc_postimputation_old.sh -i /input/GWAS_QC_data/A4/Imputed/Raw/ \
+			-o /input/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
+			-r /input/GWAS_QC_data/A4/A4_race.txt \
+			-f /input/GWAS_QC_data/A4/A4_sex.txt \
+			-g /input/GWAS_QC_data/A4/Genotyped/Cleaned/part2_allraces/A4_genotyped_geno05_maf01_mind01_norelated_sex_nomismatchedsex_keep_autosomes_hwe6_nopal_noprobSNPs_chr_bplifted_nosamepos \
 			-s /ref/topmed_snp_names"
 ```
 
@@ -327,7 +327,6 @@ In order to run X chromosome post-imputation QC, run a command similar to the fo
 singularity exec --contain \
 	--bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
-	--bind /data/h_vmac/GWAS_QC/:/data/ \
 	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_chrX.sh \
