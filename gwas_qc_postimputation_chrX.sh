@@ -398,10 +398,11 @@ do
     printf '%s\n' "Removed $geno genotyped SNPs for >5% missingness, merged in genotyped SNPs (-$removed_var same position, +$geno_only genotyped-only), removed $hwe SNPs for HWE p<1e-6 and $maf SNPs for MAF <0.01."
     printf "$samples samples\n$variants variants\n"
 
+
     # check no hh warnings on females and set hh to missing
     printf "\nConfirm no hh warning for females only below: 'Warning: ... het. haploid genotypes present' \n"
     # will have issues with males only cohort. skip this for male only
-    plink --bfile ${output} --filter-females --freq $plink_memory_limit --out $output > /dev/null
+    plink --bfile ${output} --filter-females --freq $plink_memory_limit --out ${output}_freq > /dev/null
 
     # set hh missing
     output_last=$output
