@@ -22,41 +22,36 @@ anc$AMR_EUR <- anc$AMR + anc$EUR
 anc$AFR_EUR_AMR <- anc$AFR + anc$EUR + anc$AMR
 
 # categorize based on thresholds
-anc$European <- ifelse(anc$EUR >= 0.75, 1, 0)
-anc$AA <- ifelse(anc$AFR_EUR >= 0.80 & anc$European == 0, 1, 0)
-anc$NatAmer <- ifelse(anc$AMR >= 0.60 & anc$AFR <= 0.05 & anc$AA == 0 & anc$European == 0, 1, 0)
-anc$Lat_Hisp <- ifelse(anc$AMR_EUR >= 0.80 & anc$AFR <= 0.10 & anc$NatAmer == 0 & anc$European == 0, 1, 0)
-anc$CaribHisp <- ifelse(anc$AFR_EUR_AMR >= 0.85 & anc$AFR <= 0.45 & anc$Lat_Hisp == 0 & anc$NatAmer == 0 & anc$AA == 0 & anc$European == 0, 1, 0)
-
-# make one ancestry column
 anc$Ancestry <- "Admixed"
-anc$Ancestry[anc$European=="1"] <- "European"
-anc$Ancestry[anc$AA=="1"] <- "AA"
-anc$Ancestry[anc$NatAmer=="1"] <- "Native_American"
-anc$Ancestry[anc$Lat_Hisp=="1"] <- "Latino_Hispanic"
-anc$Ancestry[anc$CaribHisp=="1"] <- "Caribbean_Hispanic"
+anc$Ancestry[anc$EUR >= 0.75] <- "EUR"
+anc$Ancestry[anc$AFR_EUR >= 0.80 & !(anc$Ancestry %in% c("EUR"))] <- "AFR"
+anc$Ancestry[anc$AMR >= 0.60 & anc$AFR <= 0.05 & !(anc$Ancestry %in% c("AFR","EUR"))] <- "AMR"
+anc$Ancestry[anc$AMR_EUR >= 0.80 & anc$AFR <= 0.10 & !(anc$Ancestry %in% c("AMR","EUR"))] <- "AMR2admx"
+anc$Ancestry[anc$AFR_EUR_AMR >= 0.85 & anc$AFR <= 0.45 & !(anc$Ancestry %in% c("AMR2admx", "AMR", "AFR","EUR"))] <- "AMR3admx"
 
 # print out how many in each group
-print(paste("There are", sum(anc$Ancestry == "Admixed"), "admixed individuals,", sum(anc$Ancestry == "European"), "European,", sum(anc$Ancestry == "AA"), "African American,", sum(anc$Ancestry == "Native_American"), "Native American,", sum(anc$Ancestry == "Latino_Hispanic"), "Latino/Hispanic, and", sum(anc$Ancestry == "Caribbean_Hispanic"), "Caribbean Hispanic ancestry."))
+print(paste("There are", sum(anc$Ancestry == "Admixed"), "admixed,", sum(anc$Ancestry == "EUR"), "EUR,", sum(anc$Ancestry == "AFR"), "AFR,", sum(anc$Ancestry == "AMR"), "AMR,", sum(anc$Ancestry == "AMR2admx"), "2-way admixed AMR, and", sum(anc$Ancestry == "AMR3admx"), "3-way admixed AMR individuals based on genetic similarity to 1000G reference superpopulations."))
 
 # split ID back into FID and IID
 anc$FID <- sapply(strsplit(anc$ID, ":"), "[", 1)
 anc$IID <- sapply(strsplit(anc$ID, ":"), "[", 2)
 
 # split into separate df
-aa <- anc[anc$Ancestry == "AA",c("FID", "IID")]
-eur <- anc[anc$Ancestry == "European",c("FID", "IID")]
-nat <- anc[anc$Ancestry == "Native_American",c("FID", "IID")]
-lat <- anc[anc$Ancestry == "Latino_Hispanic",c("FID", "IID")]
-carib <- anc[anc$Ancestry == "Caribbean_Hispanic",c("FID", "IID")]
+afr <- anc[anc$Ancestry == "AFR",c("FID", "IID")]
+eur <- anc[anc$Ancestry == "EUR",c("FID", "IID")]
+amr <- anc[anc$Ancestry == "AMR",c("FID", "IID")]
+amr2admx <- anc[anc$Ancestry == "AMR2admx",c("FID", "IID")]
+amr3admx <- anc[anc$Ancestry == "AMR3admx",c("FID", "IID")]
+admixed <- anc[anc$Ancestry == "Admixed",c("FID", "IID")]
 
 # write out lists of ids to keep
-write.table(aa, paste0(filestem, "_AA_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
+write.table(admixed, paste0(filestem, "_admixed_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
+write.table(afr, paste0(filestem, "_AFR_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
 write.table(eur, paste0(filestem, "_EUR_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
-write.table(nat, paste0(filestem, "_NatAmer_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
-write.table(lat, paste0(filestem, "_LatHisp_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
-write.table(carib, paste0(filestem, "_CaribHisp_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
-print(paste0("Lists of IDs in AA, EUR, Native American, Latino/Hispanic, and Caribbean Hispanic subsets have been written to ", filestem, "_*_keep.txt. Use these to subset the cohort before finishing post-imputation QC."))
+write.table(amr, paste0(filestem, "_AMR_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
+write.table(amr2admx, paste0(filestem, "_AMR2admx_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
+write.table(amr3admx, paste0(filestem, "_AMR3admx_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
+print(paste0("Lists of IDs in AFR, EUR, AMR, AMR2admx, and AMR3admx subsets have been written to ", filestem, "_*_keep.txt. Use these to subset the cohort before finishing post-imputation QC."))
 
 
 ###################################################
@@ -77,22 +72,22 @@ ancplot <- ancplot %>%
   mutate(
     Ancestry = 
       case_when(
-        Ancestry == "European"  ~ 1, 
-        Ancestry == "AA" ~ 2,
-	Ancestry == "Native_American" ~ 3,
-        Ancestry == "Latino_Hispanic" ~ 4,
-        Ancestry == "Caribbean_Hispanic" ~ 5,
+        Ancestry == "EUR"  ~ 1, 
+        Ancestry == "AFR" ~ 2,
+	Ancestry == "AMR" ~ 3,
+        Ancestry == "AMR2admx" ~ 4,
+        Ancestry == "AMR3admx" ~ 5,
         Ancestry == "Admixed" ~ 6
       )
   )
 
 #Create ancestry names for plot
 ancestry_names <- c(
-  '1'="European",
-  '2'="AA",
-  '3'="NatAmer",
-  '4'="LatHisp",
-  '5'="CaribHisp",
+  '1'="EUR",
+  '2'="AFR",
+  '3'="AMR",
+  '4'="AMR2admx",
+  '5'="AMR3admx",
   '6'="Admixed"
 )
 #ancestry_labeller <- function(variable,value){
