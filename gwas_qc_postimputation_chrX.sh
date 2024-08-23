@@ -26,7 +26,7 @@ preimputation_geno_X = the full path and stem to the cleaned final pre-imputatio
 
 subset = the full path and name of the file with IDs for the current subset, typically output from the assign_ancestral_categories.R script
 
-lab = label for the current subset, typically one of EUR, AA, LatHisp, CaribHisp, etc. 
+lab = label for the current subset, typically one of EUR, AFR, AMR, AMR2admx, AMR3admx.  
 
 autosomal_stem = the full path and stem to the fam file of the final autosomal plinkset (with PC outliers removed)
 

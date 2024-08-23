@@ -21,7 +21,7 @@ output_stem=${output_stem}_IDs_sex
 
 printf "Subset by ancestry using SNPWeights\n\n"
 
-for i in EUR AA LatHisp CaribHisp ; 
+for i in EUR AFR AMR AMR2admx AMR3admx ; 
 do 
   if [ -e "${output_stem}_${i}_geno01.bed" ]; 
   then 

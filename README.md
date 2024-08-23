@@ -184,15 +184,15 @@ singularity exec --contain \
 		./gwas_qc_postimputation_part2.sh \
 			-i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex \
 			-g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated \
-			-r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AA_keep.txt \
-			-l AA -m 15000 -c -p \
-			-s /ref/topmed/topmed_snp_names |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_AA_part2.log"
+			-r /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_AFR_keep.txt \
+			-l AFR -m 15000 -c -p \
+			-s /ref/topmed/topmed_snp_names |& tee /input/Imputed/Cleaned/VMAP2/VMAP2_postimputation_QC_AFR_part2.log"
 ```
 Explanation of flags:
 - -i : file stem of the plink set output from part 1 post-imputation
 - -g : file stem for preimputation genotype files to merge back in
 - -r : name of the file to subset to this ancestry group (the *keep.txt file from part 1 post-imputation)
-- -l : label for this ancestry group (EUR, AA, LatHisp, CaribHisp, NatAmer)
+- -l : label for this ancestry group (EUR, AFR, AMR2admx, AMR3admx, AMR)
 - -s : reference file with rsIDs
 - Optional flags:
 	- -p : skip PC calculation (only for sets that will be merged)
@@ -335,9 +335,9 @@ singularity exec --contain \
 		-f /input/Genotyped/Raw/VMAP2_sex.txt \
 		-s /ref/topmed_snp_names \
 		-g /input/Genotyped/Cleaned/Xchr/VMAP2_X-updated-chr23_TOPMED_varID \
-		-c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_AA_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_LatHisp_keep.txt \
-		-p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_AA_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_LatHisp_hwe6_maf01_geno01 \
-		-l EUR,AA,LatHisp -d \
+		-c /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_EUR_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_AFR_keep.txt,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_overlap_acgt_pruned_test_AMR2admx_keep.txt \
+		-p /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_EUR_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_AFR_hwe6_maf01_geno01,/input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex_nogeno_merged_AMR2admx_hwe6_maf01_geno01 \
+		-l EUR,AFR,AMR2admx -d \
 		-m 18000 |& tee /input/Imputed/Cleaned/VMAP2/Xchr/VMAP2_Xchr_postimputation_qc.log"
 ```
 Explanation of flags:
@@ -349,7 +349,7 @@ Explanation of flags:
 - Subset specific arguments (comma-separated and in order if there are multiple)
 	- -c : names of subset files for each ancestry group (the *keep.txt files from part 1 of autosomal post-imputation QC)
 	- -p : names of the final autosomal files for each ancestry group
-	- -l : labels for ancestry groups (EUR, AA, LatHisp, CaribHisp, NatAmer)
+	- -l : labels for ancestry groups (EUR, AFR, AMR2admx, AMR3admx, AMR)
 - Optional flags:
 	- -z : unzip the files from the imputation server
 	- -x : skip the first post-imputation filters (helpful if these have already been done)
