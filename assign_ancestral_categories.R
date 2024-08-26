@@ -22,7 +22,7 @@ anc$AMR_EUR <- anc$AMR + anc$EUR
 anc$AFR_EUR_AMR <- anc$AFR + anc$EUR + anc$AMR
 
 # categorize based on thresholds
-anc$Ancestry <- "Admixed"
+anc$Ancestry <- "Other"
 anc$Ancestry[anc$EUR >= 0.75] <- "EUR"
 anc$Ancestry[anc$AFR_EUR >= 0.80 & !(anc$Ancestry %in% c("EUR"))] <- "AFR"
 anc$Ancestry[anc$AMR >= 0.60 & anc$AFR <= 0.05 & !(anc$Ancestry %in% c("AFR","EUR"))] <- "AMR"
@@ -30,7 +30,7 @@ anc$Ancestry[anc$AMR_EUR >= 0.80 & anc$AFR <= 0.10 & !(anc$Ancestry %in% c("AMR"
 anc$Ancestry[anc$AFR_EUR_AMR >= 0.85 & anc$AFR <= 0.45 & !(anc$Ancestry %in% c("AMR2admx", "AMR", "AFR","EUR"))] <- "AMR3admx"
 
 # print out how many in each group
-print(paste("There are", sum(anc$Ancestry == "Admixed"), "admixed,", sum(anc$Ancestry == "EUR"), "EUR,", sum(anc$Ancestry == "AFR"), "AFR,", sum(anc$Ancestry == "AMR"), "AMR,", sum(anc$Ancestry == "AMR2admx"), "2-way admixed AMR, and", sum(anc$Ancestry == "AMR3admx"), "3-way admixed AMR individuals based on genetic similarity to 1000G reference superpopulations."))
+print(paste("There are", sum(anc$Ancestry == "Admixed"), "other admixed,", sum(anc$Ancestry == "EUR"), "EUR,", sum(anc$Ancestry == "AFR"), "AFR,", sum(anc$Ancestry == "AMR"), "AMR,", sum(anc$Ancestry == "AMR2admx"), "2-way admixed AMR, and", sum(anc$Ancestry == "AMR3admx"), "3-way admixed AMR individuals based on genetic similarity to 1000G reference superpopulations."))
 
 # split ID back into FID and IID
 anc$FID <- sapply(strsplit(anc$ID, ":"), "[", 1)
@@ -42,10 +42,10 @@ eur <- anc[anc$Ancestry == "EUR",c("FID", "IID")]
 amr <- anc[anc$Ancestry == "AMR",c("FID", "IID")]
 amr2admx <- anc[anc$Ancestry == "AMR2admx",c("FID", "IID")]
 amr3admx <- anc[anc$Ancestry == "AMR3admx",c("FID", "IID")]
-admixed <- anc[anc$Ancestry == "Admixed",c("FID", "IID")]
+other <- anc[anc$Ancestry == "Other",c("FID", "IID")]
 
 # write out lists of ids to keep
-write.table(admixed, paste0(filestem, "_admixed_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
+write.table(other, paste0(filestem, "_other_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
 write.table(afr, paste0(filestem, "_AFR_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
 write.table(eur, paste0(filestem, "_EUR_keep.txt"),  quote=F, row.names=F, col.names=F, sep="\t")
 write.table(amr, paste0(filestem, "_AMR_keep.txt"), quote=F, row.names=F, col.names=F, sep="\t")
@@ -77,7 +77,7 @@ ancplot <- ancplot %>%
 	Ancestry == "AMR" ~ 3,
         Ancestry == "AMR2admx" ~ 4,
         Ancestry == "AMR3admx" ~ 5,
-        Ancestry == "Admixed" ~ 6
+        Ancestry == "Other" ~ 6
       )
   )
 
@@ -88,7 +88,7 @@ ancestry_names <- c(
   '3'="AMR",
   '4'="AMR2admx",
   '5'="AMR3admx",
-  '6'="Admixed"
+  '6'="Other"
 )
 #ancestry_labeller <- function(variable,value){
 #  return(ancestry_names[value])
