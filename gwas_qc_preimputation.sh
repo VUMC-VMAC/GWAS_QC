@@ -22,7 +22,7 @@ sex_file = a file with FID and IID (corresponding to the fam file), 1 column ind
 
 ref_file_stem = the full file path and stem for the reference panel. Assumes it is split by chromosome and named STEM_chr*.txt.gz
 
-input_genome_build (optional) = argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the liftOver step.
+input_genome_build (optional) = argument indicating the build of the input dataset; default assumption is b37 but can supply b34, b35, b36, or b38. This will impact the liftOver step.
 
 plink_memory_limit (optional) = argument indicating the memory limit for plink to use rather than the default of half the RAM. This is useful for running this step of QC locally.
 
@@ -75,9 +75,9 @@ Reference panel SNP file : $ref_file_stem
 "
 
 # check the build argument
-if [ "$build" != "b36" ] && [ "$build" != "b37" ] && [ "$build" != "b38" ]; 
+if [ "$build" != "b34" ] && [ "$build" != "b35" ] && [ "$build" != "b36" ] && [ "$build" != "b37" ] && [ "$build" != "b38" ]; 
 then 
-    printf "Error: Invalid build argument supplied ($build). Please supply one of the following: b36, b37, b38.\n"
+    printf "Error: Invalid build argument supplied ($build). Please supply one of the following: b34, b35, b36, b37, b38.\n"
     exit 1
 fi
 
@@ -350,6 +350,14 @@ elif [ "$build" = "b36" ];
 then 
     printf "\nStep 9: Lifting over the genotype file from build 36 to build 38 to match the TOPMed reference panel\n"
     chain_file="hg18ToHg38.over.chain.gz"
+elif [ "$build" = "b35" ];
+then 
+    printf "\nStep 9: Lifting over the genotype file from build 35 to build 38 to match the TOPMed reference panel\n"
+    chain_file="hg17ToHg38.over.chain.gz"
+elif [ "$build" = "b34" ];
+then 
+    printf "\nStep 9: Lifting over the genotype file from build 34 to build 38 to match the TOPMed reference panel\n"
+    chain_file="hg16ToHg38.over.chain.gz"
 elif [ "$build" = "b38" ];
 then
     printf "\nStep 9: Input data was specified as already on build 38, so no lift-over is necessary. Proceeding to the next step.\n"
