@@ -30,7 +30,7 @@ anc$Ancestry[anc$AMR_EUR >= 0.80 & anc$AFR <= 0.10 & !(anc$Ancestry %in% c("AMR"
 anc$Ancestry[anc$AFR_EUR_AMR >= 0.85 & anc$AFR <= 0.45 & !(anc$Ancestry %in% c("AMR2admx", "AMR", "AFR","EUR"))] <- "AMR3admx"
 
 # print out how many in each group
-print(paste("There are", sum(anc$Ancestry == "Admixed"), "other admixed,", sum(anc$Ancestry == "EUR"), "EUR,", sum(anc$Ancestry == "AFR"), "AFR,", sum(anc$Ancestry == "AMR"), "AMR,", sum(anc$Ancestry == "AMR2admx"), "2-way admixed AMR, and", sum(anc$Ancestry == "AMR3admx"), "3-way admixed AMR individuals based on genetic similarity to 1000G reference superpopulations."))
+print(paste("There are", sum(anc$Ancestry == "Other"), "other admixed,", sum(anc$Ancestry == "EUR"), "EUR,", sum(anc$Ancestry == "AFR"), "AFR,", sum(anc$Ancestry == "AMR"), "AMR,", sum(anc$Ancestry == "AMR2admx"), "2-way admixed AMR, and", sum(anc$Ancestry == "AMR3admx"), "3-way admixed AMR individuals based on genetic similarity to 1000G reference superpopulations."))
 
 # split ID back into FID and IID
 anc$FID <- sapply(strsplit(anc$ID, ":"), "[", 1)
