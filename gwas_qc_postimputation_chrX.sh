@@ -214,9 +214,9 @@ then
 
     #print out numbers of variants
     total_var=$(( $(grep "out of" ${output_stem}_chrX_temp.log | awk 'BEGIN { ORS="+" } { print $4 }' | sed 's/\(.*\)+/\1 /' ) ))
-    afterR2=$( cat ${output_stem}_chrX_temp.bim | wc -l )
-    nomulti=$( cat ${output_stem}_chrX_temp_nodups.bim | wc -l )
-    printf "$total_var variants after imputation, $afterR2 variants with R2>0.8, and $nomulti variants with unique positions\n\n"
+    afterR2=$(( $total_var - $( cat ${output_stem}_chrX_temp.bim | wc -l ) ))
+    nomulti=$(( $total_var - $afterR2 - $( cat ${output_stem}_chrX_temp_nodups.bim | wc -l ) ))
+    printf "$total_var variants after imputation, $afterR2 variants removed for R2<0.8, and $nomulti duplicated variants removed.\n\n"
     
 
     samples=$( grep 'samples' ${output}.log | awk '{ print $1 }' )
