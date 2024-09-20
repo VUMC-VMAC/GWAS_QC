@@ -112,7 +112,7 @@ printf "Subsetting imputed data samples in this set and filtering variants for m
 output=${output_stem}_${subset_label}_geno05
 plink --bfile $output_stem --keep $sample_ids --geno 0.05 --make-bed --out $output $plink_memory_limit > /dev/null
 ## print warning if any variants were removed at this step
-variants=$( grep "pass filters and QC" ${output}.log | awk '{ print $1 }' )
+variants=$( grep "variants removed" ${output}.log | awk '{ print $1 }' )
 if [ $variants -gt 0 ]; then printf "Warning: There were variants removed for missingness from the imputed set when subsetting to ${subset_label}. This is unusual! Please check the imputed files!\n" ; fi
 ## report the number of samples and variants at this step
 samples=$( grep "pass filters and QC" ${output}.log | awk '{ print $4 }' )
