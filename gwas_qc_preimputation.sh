@@ -373,11 +373,13 @@ then
     #remove "chr" from chromosome column
     sed -i 's/^chr//g' ${output}_lifted.txt
 
-    #get list of variants to remove (those with non-standard allele codes or which cannot be lifted)
-    grep -e "random" -e "alt" -e "fix" ${output}_lifted.txt | awk '{ print $4 }' > ${output}_lift_issue_snps_todrop.txt
+    #get list of variants to remove (those with non-standard chr codes or which cannot be lifted)
+    awk 'length($1)>2 { print $4 }' ${output}_lifted.txt > ${output}_lift_issue_snps_todrop.txt
+    varsnonstd=$( wc -l < ${output}_lift_issue_snps_todrop.txt )
     awk '{ print $4 }' ${output}_unlifted.txt | grep -v '^$' | sort -u >> ${output}_lift_issue_snps_todrop.txt
+    varsnotpresent=$( awk '{ print $4 }' ${output}_unlifted.txt | grep -v '^$' | sort -u | wc -l )
     varsfaillift=$( wc -l < ${output}_lift_issue_snps_todrop.txt )
-    printf "Removing $varsfaillift variants which fail liftOver ($( grep "random" ${output}_lifted.txt | wc -l ) 'random', $( grep "alt" ${output}_lifted.txt | wc -l ) 'alt', $( grep "fix" ${output}_lifted.txt | wc -l ) 'fix', and $( awk '{ print $4 }' ${output}_unlifted.txt | grep -v '^$' | sort -u | wc -l ) not present in b38).\n"
+    printf "Removing $varsfaillift variants which fail liftOver ($varsnonstd 'random', 'alt', 'fix', or other, and $varsnotpresent not present in b38).\n"
 
     #drop 
     plink --bfile $output --exclude ${output}_lift_issue_snps_todrop.txt --make-bed --out ${output}_noprobSNPs $plink_memory_limit > /dev/null

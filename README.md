@@ -366,6 +366,7 @@ Below are the steps to perform a multi-set merge. These remain the same no matte
 
 The basic process for merging multiple sets of GWAS data for a given cohort is the following:
 1. Check for sample overlap between sets 
+   	- In general, keep samples in the set which has the fewest samples. 
 2. Check A1/MAF between sets and remove variants with differences > 10%
 3. Merge the sets
 4. Check relatedness in the merged set and remove individuals with relatedness >0.25
