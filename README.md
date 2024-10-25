@@ -360,17 +360,27 @@ Once this runs, check the outputs of this script, confirming that the variants a
 
 ## Multi-set Merges
 
-Some cohorts have genotype data from multiple genotyping runs. This is often the case if the genotype data were collected at multiple sites (as in NACC) or at different times (as in VMAP). In these cases, the genotype data must be processed by batch all the way through post-imputation QC and then merged at the end of the QC pipeline. The only step that can be skipped for these sets is PC outlier removal at the end of post-imputation QC. This should be performed in the merged genotype data for the whole cohort. 
-
-Below are the steps to perform a multi-set merge. These remain the same no matter how many sets are being merged. These are also advisable if genotype data is being merged between cohorts for analysis. 
+Some cohorts have genotype data from multiple genotyping runs. This is often the case if the genotype data were collected at multiple sites (as in NACC) or at different times (as in VMAP). Typically, the genotype data must be processed by batch all the way through post-imputation QC and then merged at the end of the QC pipeline. The only step that can be skipped for these sets is PC outlier removal at the end of post-imputation QC. This should be performed in the merged genotype data for the whole cohort. However, when merging sets that have small sample sizes, there is a slightly different method in order to retain as many variants as possible. Below are the steps to perform a multi-set merge followed by the alternative method for sets with a small sample size. These remain the same no matter how many sets are being merged. These are also advisable if genotype data is being merged between cohorts for analysis. 
 
 The basic process for merging multiple sets of GWAS data for a given cohort is the following:
-1. Check for sample overlap between sets 
-   	- In general, keep samples in the set which has the fewest samples. 
-2. Check A1/MAF between sets and remove variants with differences > 10%
-3. Merge the sets
-4. Check relatedness in the merged set and remove individuals with relatedness >0.25
-5. Calculate PCs and remove outliers
+1. Begin with the the sets after genotype data has been merged in and variant filters have been applied but before calculating PCs. Check for sample overlap between sets.
+   	- If there is overlap, check for concordance of data between the sets for those overlapping samples to ensure that they are genetically identical.
+   	- In general, keep samples in the set which has the most variants in the final preimputation file.
+2. Check A1/MAF between sets and remove variants with differences > 10% (using the pre_merge_A1_MAF_check.R script).
+3. Merge the sets.
+4. Check relatedness in the merged set and remove individuals with relatedness >0.25.
+5. Calculate PCs and remove outliers.
+	- It is sometimes helpful to color PC plots on set to ensure that the sets are not clustering together. 
+
+Here is the modified process for merging sets with small sample sizes:
+1. Begin with the the sets after genotype data has been merged in but before variant filters have been applied or PCs have been calculated. Check for sample overlap between sets.
+   	- If there is overlap, check for concordance of data between the sets for those overlapping samples to ensure that they are genetically identical.
+   	- In general, keep samples in the set which has the most variants in the final preimputation file.
+2. Subset to overlapping variants. 
+3. Merge the sets.
+4. Filter variants for HWE p<0.000001 and MAF<0.01. 
+5. Check relatedness in the merged set and remove individuals with relatedness >0.25.
+6. Calculate PCs and remove outliers.
 	- It is sometimes helpful to color PC plots on set to ensure that the sets are not clustering together. 
 
 ## Additional notes on PC calculation
