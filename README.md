@@ -366,6 +366,7 @@ The basic process for merging multiple sets of GWAS data for a given cohort is t
 1. Begin with the the sets after genotype data has been merged in and variant filters have been applied but before calculating PCs. Check for sample overlap between sets.
    	- If there is overlap, check for concordance of data between the sets for those overlapping samples to ensure that they are genetically identical.
    	- In general, keep samples in the set which has the most variants in the final preimputation file.
+   	- There will likely be variants that cause the first attempt at a merge fail which will be saved to a *.missnp file by plink. Remove those variants in order to complete the merge. 
 2. Check A1/MAF between sets and remove variants with differences > 10% (using the pre_merge_A1_MAF_check.R script).
 3. Merge the sets.
 4. Check relatedness in the merged set and remove individuals with relatedness >0.25.
