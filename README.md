@@ -379,9 +379,10 @@ Here is the modified process for merging sets with small sample sizes:
    	- In general, keep samples in the set which has the most variants in the final preimputation file.
 2. Subset to overlapping variants. 
 3. Merge the sets.
-4. Filter variants for HWE p<0.000001 and MAF<0.01. 
-5. Check relatedness in the merged set and remove individuals with relatedness >0.25.
-6. Calculate PCs and remove outliers.
+4. Filter to overlapping variants in the merged set using a missingness filter.
+5. Filter variants for HWE p<0.000001 and MAF<0.01. 
+6. Check relatedness in the merged set and remove individuals with relatedness >0.25.
+7. Calculate PCs and remove outliers.
 	- It is sometimes helpful to color PC plots on set to ensure that the sets are not clustering together. 
 
 ## Additional notes on PC calculation
