@@ -183,7 +183,7 @@ then
     # document
     ## get the number of samples dropped for being identical
     samplesidentical=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
-    printf "Removed $samplesidentical related individuals.\n"
+    printf "Removed $samplesidentical identical samples.\n"
     ## get the resulting number of samples and variants
     variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
