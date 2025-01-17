@@ -60,7 +60,7 @@ then
     exit 1
 fi
 
-printf "GWAS QC Pre-imputation\n"
+printf "GWAS QC Pre-imputation (Including Related Individuals)\n"
 
 # Print out singularity information for reproducability
 [ ! -z "$SINGULARITY_CONTAINER" ] && printf "\nSingularity image: $SINGULARITY_CONTAINER"
@@ -173,7 +173,7 @@ done
 if [ "$( awk '{ if(NR==1 || $10 > 0.9 ) print }' ${output}_relatedness.genome | wc -l )" -gt 1 ];
 then
     printf "Sample pairs with pi-hat above 0.9 which will be entirely removed:\n"
-    awk '{ if(NR==1 || $10 > 0.9 ) print $1" "$2" "$3" "$4" "$10 }' ${output}_relatedness.genome | tee ${output_last}_relatedness_identical.txt
+    awk '{ if(NR==1 || $10 > 0.9 ) print $1" "$2" "$3" "$4" "$10 }' ${output}_relatedness.genome | tee ${output}_relatedness_identical.txt
 
     # remove selected ids from the last generated genotype file set
     output_last=$output
