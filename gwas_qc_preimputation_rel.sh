@@ -300,7 +300,7 @@ then
     variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
     samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
     printf "$samples samples\n$variants variants\n"
-    printf "Output file: $output \n\n"
+    printf "Output file: $output \n\n" ;
 else
     printf "$samples samples\n$variants variants\n"
     printf "Output file: $output \n\n"
