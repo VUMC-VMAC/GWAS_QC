@@ -14,6 +14,8 @@ library(GGally)
 ## Second round of PC and kinship calculation
 ## Remove outliers and write out the final PC and kinship calculations
 
+data.table::setDTthreads(4)
+
 # required inputs
 output_stem <- paste0(input_geno, "_PCAiR")
 
@@ -60,7 +62,7 @@ genofile <- GdsGenotypeReader(paste0(input_geno, ".gds"))
 genodata <- GenotypeData(genofile)
 
 #Run PC-AiR, setting the kinship threshold to 
-PC_calc1 <- pcair(gdsobj =genodata, kinobj = KINGmat, divobj = KINGmat, kin.thresh = 2^(-7/2), div.thresh = -2^(-7/2))
+PC_calc1 <- pcair(gdsobj =genodata, kinobj = KINGmat, divobj = KINGmat, kin.thresh = 2^(-7/2), div.thresh = -2^(-7/2), num.cores = 2)
 
 #Get pcs in df
 pcs <- as.data.frame(PC_calc1$vectors)
@@ -123,7 +125,7 @@ dev.off()
 ############### recalculate PCs for the last time
 
 #Now recalculate the PCs using these kinship calculations
-new_pcair <- pcair(gdsobj =genodata, kinobj =relatedness_matrix, divobj =  KINGmat, kin.thresh = 2^(-7/2), div.thresh = -2^(-7/2))
+new_pcair <- pcair(gdsobj =genodata, kinobj =relatedness_matrix, divobj =  KINGmat, kin.thresh = 2^(-7/2), div.thresh = -2^(-7/2), num.cores = 2)
 
 #get pcs in df
 pcs <- as.data.frame(new_pcair$vectors)
@@ -139,7 +141,7 @@ anc_inf_pcs <- as.matrix(anc_inf_pcs)
 ############### recalculate relatedness for the last time
 
 #recalculate relatedness again, using these pcs
-new_kinship2 <- pcrelate(iterator, pcs = anc_inf_pcs, training.set = new_pcair$unrels, sample.include = row.names(anc_inf_pcs))
+new_kinship2 <- pcrelate(iterator, pcs = anc_inf_pcs, training.set = new_pcair$unrels, sample.include = row.names(anc_inf_pcs), num.cores = 2)
 
 ############ Finally, make final plots and write out corrected PCs and relatedness ############
 
