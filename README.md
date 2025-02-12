@@ -89,6 +89,7 @@ Explanation of flags:
 - Optional flags:
 	- -b : input build (default = b37)
 	- -m : value for plink --memory flag to limit resource usage
+	- -t : include related but not identical samples (see "GWAS QC including related individuals" section for more details)
 	- -n : skip exclusion of variants not matching the reference panel
 	- -c : skip the clean-up step at the end 
 
@@ -292,6 +293,7 @@ Explanation of flags:
 - Optional flags:
 	- -b : input build (default = b37)
 	- -m : value for plink --memory flag to limit resource usage
+	- -t : include related but not identical samples (see "GWAS QC including related individuals" section for more details)
 	- -n : skip exclusion of variants not matching the reference panel
 	- -c : skip the clean-up step at the end 
 
@@ -357,6 +359,17 @@ Explanation of flags:
 	- -c : skip cleanup at the end
 
 Once this runs, check the outputs of this script, confirming that the variants and samples removed at each step are reasonable. If so, X chromosome GWAS QC for this set is complete. 
+
+## GWAS QC including related individuals
+
+Some cohorts specifically recruited related individuals or have a high level of known relatedness among samples. For these, we will perform GWAS QC in a manner that allows inclusion of related individuals. While these individuals should not generally be included in most analyses together, it is helpful to have the genotype data for the highest number of samples possible so that if an analysis is being run on a phenotype that was collected in only some, the samples which have data are able to be retained and then filtered for relatedness. This will hypothetically allow for maximizing sample sizes in analyses with these cohorts. 
+
+The process for QC'ing genotypes including related individuals is very similar to the standard pipeline with two significant modifications:
+- Related individuals are not dropped from the dataset prior to imputation. Only identical samples are removed. 
+- After subsetting to ancestry groups post-imputation, PC calculation must be performed using PC-AiR (PC Analysis in Related samples). 
+
+To run pre-imputation QC including related samples for autosomes and X chromosome, run the same pre-imputation scripts as above simply adding the -t flag to exclude only samples which are identical but not those which are related. Run imputation and post-imputation QC as above, skipping PC calculation in post-imputation part 2 for autosomes (add the -p flag). Then, calculate PCs using PC-AiR. There is an example script in this repository (run_PCAiR.R), but note that it cannot be run in the singularity. Since this is an iterative process and requires evaluation of the plots, it may be easiest to run this process in RStudio, but it can be run on accre as well. 
+
 
 ## Multi-set Merges
 
