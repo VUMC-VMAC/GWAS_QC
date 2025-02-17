@@ -14,7 +14,7 @@ display_usage() {
 Completes the first stage (including X-chromosome) in standard GWAS QC, including initial variant and person filters, relatedness and sex checks, restriction to autosomes, and PC calculation. The phenotype column in .fam is updated with sex in process.
 
 Usage:
-gwas_qc_part1x.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -m [plink_memory_limit] -R [ref_file]
+gwas_qc_preimputation_chrX.sh -o [output_stem] -i [input_fileset] -f [sex_file] -b [b37] -m [plink_memory_limit] -R [ref_file] -t
 
 output_stem = the beginning part of all QC'ed files, including the full file path to the directory where the files are to be saved
 
@@ -23,6 +23,8 @@ input_fileset = the full path and file stem for the raw plink set '*[bed,bim,fam
 sex_file = a file with FID and IID (corresponding to the fam file), 1 column indicating sex for the sex check (1 for males, 2 for females, 0 if unknown), with NO header.
 
 ref_file = the full file path and name for the reference panel
+
+-t = optional argument to indicate that this dataset should be processed to include related (but not identical) samples
 
 -b = optional argument indicating the build of the input dataset; default assumption is b37 but can supply b36 or b38. This will impact the x-chromosome split step.
 
@@ -33,13 +35,15 @@ plink_memory_limit (optional) = argument indicating the memory limit for plink t
         }
 
 build=b37
-while getopts 'o:i:f:b:R:m:h' flag; do
+related=false
+while getopts 'o:i:f:b:R:m:th' flag; do
   case "${flag}" in
     o) output_stem="${OPTARG}" ;;
     i) input_fileset="${OPTARG}" ;;
     f) sex_file="${OPTARG}" ;;
     b) build="${OPTARG}" ;;
     m) plink_memory_limit="${OPTARG}" ;;
+    t) related='true' ;;
     R) ref_file="${OPTARG}" ;;
     h) display_usage ; exit ;;
     \?|*) display_usage
@@ -103,6 +107,12 @@ if [ "$plink_memory_limit" ];
 then 
     printf "Memory limit for plink calls: $plink_memory_limit \n"
     plink_memory_limit=$( echo "--memory $plink_memory_limit" )
+fi
+
+# indicate whether or not related individuals will be retained
+if [ "$related" == "true" ];
+then 
+    printf "\nThe -t flag was supplied indicating that related individuals should be retained in the current dataset.\n"
 fi
 
 
@@ -177,11 +187,9 @@ printf "$samples samples
 $variants variants\n"
 printf "Output file: $output \n"
 
-
-##### Relatedness #####
-printf "\nStep 3: Calculate relatedness and remove related individuals\n"
+########## Relatedness ##########
+printf "\nStep 3: Calculate relatedness and remove individuals\n"
 plink --bfile $output --genome full unbounded nudge --min 0.20 --out ${output}_relatedness $plink_memory_limit > /dev/null
-
 
 #print out # or related individuals at each threshold
 for pi_hat in 0.9 0.5 0.25; do
@@ -189,31 +197,63 @@ for pi_hat in 0.9 0.5 0.25; do
     printf "Pairs above pi-hat of $pi_hat: $n_rel \n"
 done
 
+
 #print out all basically identical pairs which will be removed entirely to allow for quick scanning for intended sample duplicates (re-genotyped samples, the unlikely event of actual identical twins, ect)
 if [ "$( awk '{ if(NR==1 || $10 > 0.9 ) print }' ${output}_relatedness.genome | wc -l )" -gt 1 ];
 then
     printf "Sample pairs with pi-hat above 0.9 which will be entirely removed:\n"
-    awk '{ if(NR==1 || $10 > 0.9 ) print $1" "$2" "$3" "$4" "$10 }' ${output}_relatedness.genome
+    awk '{ if(NR==1 || $10 > 0.9 ) print $1" "$2" "$3" "$4" "$10 }' ${output}_relatedness.genome | tee ${output}_relatedness_identical.txt
+    # fix the file to have one sample ID per line so that all related individuals are removed
+    awk '{ if(NR>1) print $1" "$2"\n"$3" "$4 }' ${output}_relatedness_identical.txt > tmp && mv tmp ${output}_relatedness_identical.txt
 fi
 
-# Rscript for decisions
-Rscript get_related_ids.R ${output}_relatedness
 
-# remove selected ids from the last generated genotype file set
-output_last=$output
-output=${output}_norelated
-plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output $plink_memory_limit > /dev/null
+# proceed with the typical way if it was not specified to include related individuals
+if [ "$related" == 'false' ];
+then
 
-# document                                                                                                                                         
-## get the number of samples dropped for relatedness                                                                                               
-samplesrelated=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
-printf "Removed $samplesrelated related individuals.\n"
-## get the resulting number of samples and variants                                                                                                
-variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
-samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
-printf "$samples samples                                                                                                                           
+    # Rscript for decisions
+    Rscript get_related_ids.R ${output}_relatedness
+
+    # remove selected ids from the last generated genotype file set
+    output_last=$output
+    output=${output}_norelated
+    plink --bfile $output_last --remove ${output_last}_relatedness_related_ids.txt --make-bed --out $output $plink_memory_limit > /dev/null
+
+    # document
+    ## get the number of samples dropped for relatedness
+    samplesrelated=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
+    printf "Removed $samplesrelated related individuals.\n"
+    ## get the resulting number of samples and variants
+    variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+    samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
+    printf "$samples samples
 $variants variants\n"
-printf "Output file: $output \n"
+    printf "Output file: $output \n"
+elif [ "$related" == 'true' ];
+then
+    if [ "$( wc -l < ${output}_relatedness_identical.txt )" -gt 1 ];
+    then
+	# remove selected ids from the last generated genotype file set
+	output_last=$output
+	output=${output}_noidentical
+	plink --bfile $output_last --remove ${output_last}_relatedness_identical.txt --make-bed --out $output $plink_memory_limit > /dev/null
+
+	# document
+	## get the number of samples dropped for being identical
+	samplesidentical=$(($samples - $( grep "people remaining" ${output}.log | awk '{print $2;}' )))
+	printf "Removed $samplesidentical identical samples.\n"
+	## get the resulting number of samples and variants
+	variants=$( grep "pass filters and QC" ${output}.log | awk '{print $1;}' )
+	samples=$( grep "pass filters and QC" ${output}.log | awk '{print $4;}' )
+	printf "$samples samples
+$variants variants\n"
+	printf "Output file: $output \n" 
+    else 
+	printf "No identical samples to remove.\n" 
+    fi 
+
+fi
 
 ##### sex check #####
 printf "\nStep 4: sex check\n"
