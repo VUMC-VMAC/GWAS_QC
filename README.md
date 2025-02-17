@@ -196,7 +196,7 @@ Explanation of flags:
 - -l : label for this ancestry group (EUR, AFR, AMR2admx, AMR3admx, AMR)
 - -s : reference file with rsIDs
 - Optional flags:
-	- -p : skip PC calculation (only for sets that will be merged)
+	- -p : skip PC calculation (only for sets that will be merged or that have related individuals and should be processed with PC-AiR)
 	- -m : value for plink --memory flag to limit resource usage
 	- -c : skip cleanup at the end
 
