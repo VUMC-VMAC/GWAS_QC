@@ -14,7 +14,7 @@ library(GGally)
 ## Second round of PC and kinship calculation
 ## Remove outliers and write out the final PC and kinship calculations
 
-data.table::setDTthreads(4)
+### Note: this cannot be run in the GWAS QC singularity container. Best practice is to run this on your local computer if possible because these packages can take up quite a lot of resources in ways that are not fitting for running on our shared compute gateway. 
 
 # required inputs
 output_stem <- paste0(input_geno, "_PCAiR")
