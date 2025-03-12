@@ -194,7 +194,10 @@ then
 else
     output=$output_stem
     # check for the presence of the merged file with the supplied name and fail if not present
-    if [ ! -f ${output_stem}.bed ]; then exit 1 ; fi
+    if [ ! -f ${output_stem}.bed ]; then 
+	printf "\nCannot find the merged file. Please check the supplied file path and stem and try again!\n\n"
+	exit 1 ; 
+    fi
 
     # if present, log skipping the first step
     printf "\nSkipping steps 1 and 2 (the unzipping, conversion, and filtering of the individual chromosomes) because the -x flag was supplied! Picking up at updating sample IDs and sex in the merged file. Assuming the merged file stem is $output\n"
