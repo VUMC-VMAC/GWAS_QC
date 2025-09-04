@@ -99,7 +99,7 @@ fi
 ## variant IDs
 awk 'length($2)>30{ print $2" "$1"_"$4 }' ${input_stem}.bim > ${input_stem}_shortvarids.txt
 ## sample IDs
-awk '{ if(length($1)>30 || length($2)>30) print $1" "$2" "NR" "NR }' ${input_stem}.fam > ${input_stem}_shortfamids.txt
+awk '{ if(length($1)>15 || length($2)>15) print $1" "$2" "NR" "NR }' ${input_stem}.fam > ${input_stem}_shortfamids.txt
 
 # update bim IDs if that file is non-empty
 if [ -s "${input_stem}_shortvarids.txt" ];
