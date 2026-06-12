@@ -110,7 +110,7 @@ then
 fi
 
 # indicate whether or not related individuals will be retained
-if [ "$related" == "true" ];
+if [ "$related" = "true" ];
 then 
     printf "\nThe -t flag was supplied indicating that related individuals should be retained in the current dataset.\n"
 fi
@@ -209,7 +209,7 @@ fi
 
 
 # proceed with the typical way if it was not specified to include related individuals
-if [ "$related" == "false" ];
+if [ "$related" = "false" ];
 then
 
     # Rscript for decisions
@@ -230,7 +230,7 @@ then
     printf "$samples samples
 $variants variants\n"
     printf "Output file: $output \n"
-elif [ "$related" == "true" ];
+elif [ "$related" = "true" ];
 then
     if [ "$( wc -l < ${output}_relatedness_identical.txt )" -gt 1 ];
     then
