@@ -187,12 +187,12 @@ then
     printf "Sample pairs with pi-hat above 0.9 which will be entirely removed:\n"
     awk '{ if(NR==1 || $10 > 0.9 ) print $1" "$2" "$3" "$4" "$10 }' ${output}_relatedness.genome | tee ${output}_relatedness_identical.txt
     # fix the file to have one sample ID per line so that all related individuals are removed
-    awk '{ if(NR>1) print $1" "$2"\n"$3" "$4 }' ${output}_relatedness_identical.txt > tmp && mv tmp ${output}_relatedness_identical.txt
+    awk '{ if(NR>1) print $1" "$2"\n"$3" "$4 }' ${output}_relatedness_identical.txt > ${output_path}/tmp && mv ${output_path}/tmp ${output}_relatedness_identical.txt
 fi
 
 
 # proceed with the typical way if it was not specified to include related individuals
-if [ "$related" == 'false' ];
+if [ "$related" == "false" ];
 then
 
     # Rscript for decisions
@@ -213,7 +213,7 @@ then
     printf "$samples samples
 $variants variants\n"
     printf "Output file: $output \n"
-elif [ "$related" == 'true' ];
+elif [ "$related" == "true" ];
 then
     if [ "$( wc -l < ${output}_relatedness_identical.txt )" -gt 1 ];
     then
