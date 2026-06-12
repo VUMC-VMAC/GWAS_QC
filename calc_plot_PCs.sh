@@ -98,8 +98,6 @@ fi
 # check lengths of variant and sample IDs
 ## variant IDs
 awk 'length($2)>30{ print $2" "$1"_"$4 }' ${input_stem}.bim > ${input_stem}_shortvarids.txt
-## sample IDs
-awk '{ if(length($1)>30 || length($2)>30) print $1" "$2" "NR" "NR }' ${input_stem}.fam > ${input_stem}_shortfamids.txt
 
 # update bim IDs if that file is non-empty
 if [ -s "${input_stem}_shortvarids.txt" ];
@@ -107,10 +105,14 @@ then
     plink --bfile $input_stem --update-name ${input_stem}_shortvarids.txt --make-bed --out ${input_stem}_shortvarids $plink_memory_limit > /dev/null
     input_stem=${input_stem}_shortvarids
 fi
+
+## sample IDs
+awk '{ if(length($1)>15 || length($2)>15) print $1" "$2" "NR" "NR }' ${input_stem}.fam > ${input_stem}_shortfamids.txt
+
 # update fam file if necessary
 if [ -s "${input_stem}_shortfamids.txt" ];
 then
-    plink --bfile $input_stem --update-id ${input_stem}_shortfamids.txt --make-bed --out ${input_stem}_shortfamids $plink_memory_limit > /dev/null
+    plink --bfile $input_stem --update-ids ${input_stem}_shortfamids.txt --make-bed --out ${input_stem}_shortfamids $plink_memory_limit > /dev/null
     input_stem=${input_stem}_shortfamids
 fi
 
