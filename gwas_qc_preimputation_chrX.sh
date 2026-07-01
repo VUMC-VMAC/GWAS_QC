@@ -270,9 +270,9 @@ else
 fi
 
 # check to confirm that sex information is present and fail if not
-if [[ $( grep "ambiguous" ${output}.fam ) -ne 0 ]];
+if [ $( grep "ambiguous" ${output}.log ) -ne 0 ];
 then
-    printf "Error: Missing sex for $( awk '{ if($5==0) print }' /data/h_vmac/waltes2/X_QC/WHICAP/1099_GWAS/PrePart1/1099GWAS_part1X_nopal.fam | wc -l ) samples. Please check your input files! Self-report sex is required to confirm data quality and to perform sex-specific variant filters on X chromosome variants.\n"
+    printf "Error: Missing sex for $( awk '{ if($5==0) print }' ${output}.fam | wc -l ) samples. Please check your input files! Self-report sex is required to confirm data quality and to perform sex-specific variant filters on X chromosome variants.\n"
     exit 1
 fi
 
