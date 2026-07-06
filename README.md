@@ -37,7 +37,7 @@ Each step (except the TOPMed imputation) is run as a bash script in a singularit
 
 In general, it is best to run the QC scripts as slurm jobs. There is an example slurm script for running pre-imputation QC in this repository: run_gwas_qc_preimputation.slurm However, if it is desired to run the scripts locally, most scripts have the -m flag which can be used to limit the memory allotments of plink commands making it possible to run locally. 
 
-Current version of the singularity: CNT_genomic_processing_v3.10.simg
+Current version of the singularity: CNT_genomic_processing_v3.19.simg
 
 Software used for QC:
 - plink, versions 1.9 and 2.0: https://www.cog-genomics.org/plink/
@@ -72,7 +72,7 @@ To run the preimputation script, run a singularity command similar to the one be
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/:/input \
 	--bind /data/h_vmac/:/ref/ /data/h_vmac/GWAS_QC/singularity/ \
-	CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+	CNT_genomic_processing_v3.19.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_preimputation.sh \
 			-i /input/VMAP/Genotyped/Raw/VMAP2_mapids \ 
 			-o /input/VMAP/Genotyped/Cleaned/VMAP2_mapids \
@@ -138,7 +138,7 @@ To run the first step in the SNPWeights post-imputation step, run something like
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_part1.sh \
 			-i /input/Imputed/Raw/VMAP2/ \
 			-o /input/Imputed/Cleaned/VMAP2/VMAP2_imputed \
@@ -181,7 +181,7 @@ To run the second post-imputation step, run something like the following command
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
 	--bind /data/h_vmac/GWAS_QC/:/ref/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg /bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_part2.sh \
 			-i /input/Imputed/Cleaned/VMAP2/VMAP2_imputed_IDs_sex \
 			-g /input/Genotyped/Cleaned/VMAP2_mapids_forimputation-updated \
@@ -213,7 +213,7 @@ To run the post-imputation QC without SNPWeights, run a command similar to the o
 singularity exec --contain \
 	    --bind /nobackup/h_vmac/mahone1/:/input \
 	    --bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
-	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
+	    /data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg /bin/bash -c  "cd /scripts/GWAS_QC/ ; \
 	    ./gwas_qc_postimputation_old.sh -i /input/GWAS_QC_data/A4/Imputed/Raw/ \
 			-o /input/GWAS_QC_data/A4/Imputed/Cleaned/AllRaces/A4_AllRaces_imputed  \
 			-r /input/GWAS_QC_data/A4/A4_race.txt \
@@ -275,7 +275,7 @@ To run the pre-imputation script, run a singularity command similar to the one b
 singularity exec --contain \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
 	--bind /data/h_vmac/GWAS_QC/:/data/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_preimputation_chrX.sh \
 		-o /input/Genotyped/Cleaned/Xchr/VMAP2_X \
@@ -329,7 +329,7 @@ In order to run X chromosome post-imputation QC, run a command similar to the fo
 singularity exec --contain \
 	--bind /data/h_vmac/GWAS_QC/topmed/:/ref/ \
 	--bind /nobackup/h_vmac/mahone1/GWAS_QC/VMAP/:/input/ \
-	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg \
 	/bin/bash -c "cd /scripts/GWAS_QC/ ; \
 		./gwas_qc_postimputation_chrX.sh \
 		-o /input/Imputed/Cleaned/VMAP2/VMAP2_Xchr \
@@ -404,7 +404,7 @@ To recalculate PCs using smartpca from eigensoft, run a command similar to the o
 ```
 singularity exec --contain \
 	--bind /path/to/genotype/data/:/inputs/ \
-  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg \
   	/bin/bash -c  "cd /scripts/GWAS_QC/ ; ./calc_plot_PCs.sh \
   		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
@@ -412,7 +412,7 @@ singularity exec --contain \
 An additional method to calculate PCs is also available using SNPRelate in R. This method is significantly faster than the smartpca method. To calculate PCs using this method, run a command similar to this:
 ```
 singularity exec --contain --bind /path/to/genotype/data/:/inputs/ \
-  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.10.simg \
+  	/data/h_vmac/GWAS_QC/singularity/CNT_genomic_processing_v3.19.simg \
 	/bin/bash -c  "cd /scripts/GWAS_QC/ ; ./calc_plot_PCs_snprelate.sh \
   		-i /inputs/Imputed/Raw/COHORT_imputed_NHW_ids_sex_maf01_hwe6_ids"
 ```
