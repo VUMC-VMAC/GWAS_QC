@@ -231,7 +231,7 @@ After the post-imputation QC runs, check the principal components for outliers, 
 
 ## X Chromosome GWAS QC
 
-The X chromosome pipeline is similar to the autosomal pipeline with a few key differences. A few of the variant filters occur in a sex-specific manner. Because of this, any samples with unknown self-report sex must be removed before this pipeline is run. Additionally, some of the sample filters (like heterozygosity, ancestry subsetting, and PC outlier removal) occur based on autosomal thresholds. Thus, X chromosome QC must be run separately from autosomal QC. Below are instructions for running the X chromosome QC pipeline. 
+The X chromosome pipeline is similar to the autosomal pipeline with a few key differences. A few of the variant filters occur in a sex-specific manner. Because of this, any samples with unknown self-report sex will be removed before subsetting to X chromosome variants. Additionally, some of the sample filters (like heterozygosity, ancestry subsetting, and PC outlier removal) occur based on autosomal thresholds. Thus, X chromosome QC must be run separately from autosomal QC. Below are instructions for running the X chromosome QC pipeline. 
 
 Here are the general steps in this pipeline:
 1. Pre-Imputation QC
