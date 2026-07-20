@@ -270,16 +270,18 @@ else
 fi
 
 # check to confirm that sex information is present, removing samples without sex information if present
-if [ $( grep "ambiguous" ${output}.log ) -ne 0 ];
+if [ -n "$( grep "ambiguous" ${output}.log )" ];
 then
     output_last=$output
     output=${output}_nomisssex
+    # make file with missing sex sample IDs
+    awk '{ if($5==0) print $1,$2 }' ${output_last}.fam > ${output_last}_missingsex.txt
     # note: this will fail if everyone is removed which will mean that x chr qc shouldn't continue anyway
-    plink --bfile $output_last --remove ${output_last}.nosex --make-bed --out $output $plink_memory_limit > /dev/null
+    plink --bfile $output_last --remove ${output_last}_missingsex.txt --make-bed --out $output $plink_memory_limit > /dev/null
 fi
 
 ## check to confirm that sex information is present and fail if not
-#if [ $( grep "ambiguous" ${output}.log ) -ne 0 ];
+#if [ -n "$( grep "ambiguous" ${output}.log )" ];
 #then
 #    printf "Error: Missing sex for $( awk '{ if($5==0) print }' ${output}.fam | wc -l ) samples. Please check your input files! Self-report sex is required to confirm data quality and to perform sex-specific variant filters on X chromosome variants.\n"
 #    exit 1
